@@ -1,0 +1,279 @@
+:root {
+  font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+  color: #19231d;
+  background: #f5f1e8;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 86% 4%, rgb(190 214 190 / 55%), transparent 31rem),
+    linear-gradient(180deg, #f7f4ed 0%, #eee9dd 100%);
+}
+
+button {
+  border: 1px solid #283f31;
+  border-radius: 999px;
+  padding: 0.72rem 1.1rem;
+  color: #f8f5ee;
+  background: #283f31;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.shell {
+  width: min(1080px, calc(100% - 3rem));
+  margin: 0 auto;
+  padding: 4.5rem 0 5rem;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 15rem;
+  align-items: end;
+  gap: 3rem;
+  padding-bottom: 3.5rem;
+  border-bottom: 1px solid rgb(25 35 29 / 22%);
+}
+
+.eyebrow {
+  margin: 0 0 0.75rem;
+  color: #587462;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.17em;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  max-width: 14ch;
+  margin-bottom: 1.25rem;
+  font-family: ui-serif, "Songti SC", Georgia, serif;
+  font-size: clamp(3rem, 7vw, 5.8rem);
+  font-weight: 520;
+  line-height: 0.98;
+  letter-spacing: -0.045em;
+}
+
+h2 {
+  margin-bottom: 0;
+  font-family: ui-serif, "Songti SC", Georgia, serif;
+  font-size: 2rem;
+  font-weight: 560;
+}
+
+h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.lede {
+  max-width: 45rem;
+  margin-bottom: 0;
+  color: #536058;
+  font-size: 1.02rem;
+  line-height: 1.7;
+}
+
+.counter {
+  padding: 1.5rem;
+  border: 1px solid rgb(25 35 29 / 18%);
+  border-radius: 1.5rem;
+  background: rgb(255 255 255 / 48%);
+  box-shadow: 0 1rem 3rem rgb(41 58 45 / 8%);
+}
+
+.counter span,
+.counter small {
+  display: block;
+  color: #657269;
+}
+
+.counter strong {
+  display: block;
+  margin: 0.3rem 0;
+  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-size: 3.3rem;
+  line-height: 1;
+}
+
+.section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2rem;
+  margin: 3.5rem 0 1.25rem;
+}
+
+.grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.two-column {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.card {
+  min-width: 0;
+  padding: 1.5rem;
+  border: 1px solid rgb(25 35 29 / 16%);
+  border-radius: 1.25rem;
+  background: rgb(255 255 255 / 58%);
+}
+
+.card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.35rem;
+}
+
+.pill,
+.provider-status {
+  flex: none;
+  border-radius: 999px;
+  padding: 0.28rem 0.62rem;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.success,
+.status-available {
+  color: #195d3b;
+  background: #d8ecdc;
+}
+
+.pending,
+.status-loading {
+  color: #765c1d;
+  background: #eee3bd;
+}
+
+.status-not_installed,
+.status-broken_installation,
+.status-unauthenticated,
+.status-unsupported_version {
+  color: #812f28;
+  background: #f2d8d4;
+}
+
+dl {
+  margin: 0;
+}
+
+.detail-row {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: 1rem;
+  padding: 0.7rem 0;
+  border-top: 1px solid rgb(25 35 29 / 11%);
+}
+
+.detail-row dt {
+  color: #68736c;
+}
+
+.detail-row dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.mono,
+code {
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.hint,
+.provider-detail,
+.error-copy {
+  color: #5e6a62;
+  line-height: 1.55;
+}
+
+.hint {
+  margin: 1rem 0 0;
+}
+
+.provider-detail {
+  min-height: 3.1rem;
+}
+
+.error-copy {
+  margin: 1rem 0 0;
+  color: #812f28;
+}
+
+details {
+  margin-top: 1rem;
+  color: #5e6a62;
+}
+
+summary {
+  cursor: pointer;
+}
+
+.attempts {
+  padding: 0;
+  list-style: none;
+}
+
+.attempts li {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0;
+  border-top: 1px solid rgb(25 35 29 / 11%);
+}
+
+.attempts code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .shell {
+    width: min(100% - 2rem, 1080px);
+    padding-top: 2.5rem;
+  }
+
+  .hero,
+  .two-column {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    gap: 2rem;
+  }
+
+  .counter {
+    max-width: none;
+  }
+
+  .detail-row {
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+  }
+}

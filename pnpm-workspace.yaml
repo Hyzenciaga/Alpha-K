@@ -1,0 +1,5 @@
+onlyBuiltDependencies:
+  - '@qoder-ai/qoder-agent-sdk'
+  - better-sqlite3
+  - electron
+  - esbuild

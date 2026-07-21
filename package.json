@@ -1,0 +1,77 @@
+{
+  "name": "alpha-k",
+  "version": "0.0.1",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "author": "Alpha-K Contributors",
+  "description": "Local-first knowledge client powered by locally authenticated agents",
+  "main": "./out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "pnpm typecheck && electron-vite build",
+    "package:dir": "pnpm build && electron-builder --mac dir",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "qoder:login": "node scripts/qoder-cli.mjs login",
+    "qoder:status": "node scripts/qoder-cli.mjs --list-models",
+    "phase0:codex-smoke": "node scripts/codex-smoke.mjs",
+    "phase0:lifecycle-smoke": "release/mac-arm64/Alpha-K.app/Contents/MacOS/Alpha-K --phase-zero-lifecycle-smoke",
+    "phase0:qoder-cancel-smoke": "node scripts/qoder-cancel-smoke.mjs",
+    "phase0:qoder-smoke": "node scripts/qoder-smoke.mjs",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10"
+  },
+  "dependencies": {
+    "@qoder-ai/qoder-agent-sdk": "^1.0.15",
+    "better-sqlite3": "^13.0.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^26.1.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.2.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "eslint": "^10.7.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.65.0",
+    "vite": "^7.3.6",
+    "vitest": "^4.1.10"
+  },
+  "build": {
+    "appId": "com.alpha-k.knowledge-client",
+    "productName": "Alpha-K",
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**",
+      "node_modules/@qoder-ai/qoder-agent-sdk/dist/_bundled/**"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        "dir"
+      ]
+    }
+  }
+}
