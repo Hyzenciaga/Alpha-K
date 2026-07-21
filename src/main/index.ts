@@ -22,10 +22,10 @@ function createWindow(): BrowserWindow {
     minWidth: 820,
     minHeight: 600,
     show: false,
-    title: 'Alpha-K · Phase 0',
-    backgroundColor: '#f5f1e8',
+    title: 'Alpha-K',
+    backgroundColor: '#eeede7',
     webPreferences: {
-      preload: join(__dirname, '../preload/index.mjs'),
+      preload: join(__dirname, '../preload/index.cjs'),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
@@ -46,6 +46,15 @@ function createWindow(): BrowserWindow {
     logPhaseZero('window-restored', { backgroundTicks })
     broadcastStatus()
   })
+
+  if (!app.isPackaged) {
+    window.webContents.on('console-message', (event) => {
+      if (event.level === 'error') console.error(`[renderer] ${event.message}`)
+    })
+    window.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+      console.error(`[renderer] failed to load ${validatedURL}: ${errorCode} ${errorDescription}`)
+    })
+  }
 
   if (process.env.ELECTRON_RENDERER_URL) {
     void window.loadURL(process.env.ELECTRON_RENDERER_URL)
