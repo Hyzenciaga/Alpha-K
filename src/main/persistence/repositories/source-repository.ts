@@ -3,10 +3,12 @@ import type Database from 'better-sqlite3'
 import { IdSchema } from '../../../shared/domain/common.js'
 import {
   CreateSourceInputSchema,
+  SourceListFilterSchema,
   SourceSchema,
   UpdateSourceInputSchema,
   type CreateSourceInput,
   type Source,
+  type SourceListFilter,
   type UpdateSourceInput,
 } from '../../../shared/domain/source.js'
 
@@ -70,13 +72,30 @@ export class SourceRepository {
     return row ? mapSource(row) : undefined
   }
 
-  listByVault(vaultId: string): Source[] {
-    const parsedVaultId = IdSchema.parse(vaultId)
+  list(filter: SourceListFilter): Source[] {
+    const parsed = SourceListFilterSchema.parse(filter)
+    const conditions = ['vault_id = ?']
+    const parameters: unknown[] = [parsed.vaultId]
+    if (parsed.types?.length) {
+      conditions.push(`type IN (${parsed.types.map(() => '?').join(', ')})`)
+      parameters.push(...parsed.types)
+    }
+    if (parsed.enabled !== undefined) {
+      conditions.push('enabled = ?')
+      parameters.push(parsed.enabled ? 1 : 0)
+    }
     return (
       this.database
-        .prepare('SELECT * FROM sources WHERE vault_id = ? ORDER BY name COLLATE NOCASE, created_at')
-        .all(parsedVaultId) as SourceRow[]
+        .prepare(
+          `SELECT * FROM sources WHERE ${conditions.join(' AND ')}
+           ORDER BY name COLLATE NOCASE, created_at`,
+        )
+        .all(...parameters) as SourceRow[]
     ).map(mapSource)
+  }
+
+  listByVault(vaultId: string): Source[] {
+    return this.list({ vaultId })
   }
 
   update(id: string, input: UpdateSourceInput): Source | undefined {
@@ -132,6 +151,18 @@ export class SourceRepository {
 
   delete(id: string): boolean {
     return this.database.prepare('DELETE FROM sources WHERE id = ?').run(IdSchema.parse(id)).changes === 1
+  }
+
+  hasRetainedData(id: string): boolean {
+    const sourceId = IdSchema.parse(id)
+    const row = this.database
+      .prepare(
+        `SELECT
+          EXISTS(SELECT 1 FROM knowledge_items WHERE source_id = ?) AS has_items,
+          EXISTS(SELECT 1 FROM source_sync_runs WHERE source_id = ?) AS has_sync_runs`,
+      )
+      .get(sourceId, sourceId) as { has_items: number; has_sync_runs: number }
+    return row.has_items === 1 || row.has_sync_runs === 1
   }
 
   private now(): string {

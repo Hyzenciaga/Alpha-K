@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Alpha Research</title>
+    <description>Research updates</description>
+    <link>https://example.com/</link>
+    <item>
+      <title>First Article</title>
+      <guid isPermaLink="false"> article-1 </guid>
+      <link>https://EXAMPLE.com/articles/1?b=2&amp;a=1#section</link>
+      <dc:creator>Alice</dc:creator>
+      <pubDate>Tue, 21 Jul 2026 08:30:00 GMT</pubDate>
+      <content:encoded><![CDATA[<p>Detailed <strong>research</strong> content.</p>]]></content:encoded>
+      <enclosure url="https://example.com/files/one.pdf" type="application/pdf" title="Paper" />
+    </item>
+    <item>
+      <title>Second Article</title>
+      <link>/articles/2</link>
+      <author>bob@example.com (Bob)</author>
+      <description><![CDATA[Second research summary.]]></description>
+    </item>
+    <item>
+      <title>Hash Only Article</title>
+      <description>Stable content without identifiers.</description>
+    </item>
+  </channel>
+</rss>

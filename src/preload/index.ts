@@ -3,8 +3,10 @@ import type { AlphaKApi, PhaseZeroStatus } from '../shared/contracts.js'
 import { IPC_CHANNELS } from '../shared/contracts.js'
 import type { AppEvent, PhaseOneApi } from '../shared/ipc/phase-one-contract.js'
 import { PHASE_ONE_IPC_CHANNELS } from '../shared/ipc/phase-one-contract.js'
+import type { PhaseTwoApi } from '../shared/ipc/phase-two-contract.js'
+import { PHASE_TWO_IPC_CHANNELS } from '../shared/ipc/phase-two-contract.js'
 
-const api: AlphaKApi & PhaseOneApi = {
+const api: AlphaKApi & PhaseOneApi & PhaseTwoApi = {
   getPhaseZeroStatus: () => ipcRenderer.invoke(IPC_CHANNELS.getPhaseZeroStatus),
   refreshProviders: () => ipcRenderer.invoke(IPC_CHANNELS.refreshProviders),
   onPhaseZeroStatus: (listener) => {
@@ -19,6 +21,17 @@ const api: AlphaKApi & PhaseOneApi = {
   listJobs: (filter = {}) => ipcRenderer.invoke(PHASE_ONE_IPC_CHANNELS.jobsList, filter),
   cancelJob: (jobId) => ipcRenderer.invoke(PHASE_ONE_IPC_CHANNELS.jobsCancel, { jobId }),
   retryJob: (jobId) => ipcRenderer.invoke(PHASE_ONE_IPC_CHANNELS.jobsRetry, { jobId }),
+  listSources: (filter) => ipcRenderer.invoke(PHASE_TWO_IPC_CHANNELS.sourcesList, filter),
+  createSource: (input) => ipcRenderer.invoke(PHASE_TWO_IPC_CHANNELS.sourcesCreate, input),
+  updateSource: (sourceId, input) =>
+    ipcRenderer.invoke(PHASE_TWO_IPC_CHANNELS.sourcesUpdate, { sourceId, input }),
+  deleteSource: (sourceId) =>
+    ipcRenderer.invoke(PHASE_TWO_IPC_CHANNELS.sourcesDelete, { sourceId }),
+  previewSource: (input) => ipcRenderer.invoke(PHASE_TWO_IPC_CHANNELS.sourcesPreview, input),
+  syncSource: (sourceId) =>
+    ipcRenderer.invoke(PHASE_TWO_IPC_CHANNELS.sourcesSync, { sourceId }),
+  listSyncRuns: (filter) => ipcRenderer.invoke(PHASE_TWO_IPC_CHANNELS.syncRunsList, filter),
+  listInboxItems: (filter) => ipcRenderer.invoke(PHASE_TWO_IPC_CHANNELS.inboxList, filter),
   onAppEvent: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, appEvent: AppEvent): void => listener(appEvent)
     ipcRenderer.on(PHASE_ONE_IPC_CHANNELS.appEvent, handler)

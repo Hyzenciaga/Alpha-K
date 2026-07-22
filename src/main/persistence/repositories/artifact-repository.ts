@@ -79,6 +79,36 @@ export class ArtifactRepository {
     ).map(mapArtifact)
   }
 
+  updateForIngestion(
+    id: string,
+    input: Pick<
+      CreateArtifactInput,
+      'kind' | 'storageMode' | 'path' | 'mimeType' | 'size' | 'contentHash' | 'lastSeenAt'
+    >,
+  ): Artifact | undefined {
+    const parsedId = IdSchema.parse(id)
+    const now = this.now()
+    const result = this.database
+      .prepare(
+        `UPDATE artifacts SET
+          kind = ?, storage_mode = ?, path = ?, mime_type = ?, size = ?,
+          content_hash = ?, last_seen_at = ?, missing_since = NULL, updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(
+        input.kind,
+        input.storageMode,
+        input.path,
+        input.mimeType,
+        input.size,
+        input.contentHash,
+        input.lastSeenAt,
+        now,
+        parsedId,
+      )
+    return result.changes === 1 ? this.getById(parsedId) : undefined
+  }
+
   markSeen(id: string, details: { size?: number | null; contentHash?: string | null } = {}): Artifact | undefined {
     const parsedId = IdSchema.parse(id)
     const now = this.now()

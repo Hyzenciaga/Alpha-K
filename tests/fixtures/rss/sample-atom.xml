@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Atom Research</title>
+  <subtitle>Atom updates</subtitle>
+  <entry>
+    <title>Atom Article</title>
+    <id>urn:uuid:1225c695-cfb8-4ebb-aaaa-80da344efa6a</id>
+    <updated>2026-07-20T18:30:02+08:00</updated>
+    <author><name>Carol</name></author>
+    <link rel="self" href="https://example.com/atom/entry.xml" />
+    <link rel="alternate" href="https://example.com/atom/article#top" />
+    <summary type="html">Atom research summary.</summary>
+  </entry>
+</feed>
