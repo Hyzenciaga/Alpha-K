@@ -6,6 +6,8 @@ coverage/
 .tsbuild/
 *.tsbuildinfo
 *.log
+.env.local
+.env.*.local
 .DS_Store
 .idea/
 .vscode/

@@ -18,6 +18,7 @@ import type { PhaseZeroStatus } from '@shared/contracts'
 import type { EnqueueJobInput, Job } from '@shared/domain/job'
 import type { IpcError } from '@shared/ipc/phase-one-contract'
 import type { VaultConnection } from '@shared/domain/vault'
+import type { CloudStatus } from '@shared/domain/cloud-sync'
 import { Button, IconButton, Modal, SearchField, SegmentedControl, Toast } from './components'
 import { InboxPage } from './InboxPage'
 import type { PageId } from './mock-data'
@@ -62,6 +63,8 @@ export function App(): React.JSX.Element {
   const [jobs, setJobs] = useState<Job[]>([])
   const [phaseOneLoading, setPhaseOneLoading] = useState(true)
   const [vaultBusy, setVaultBusy] = useState(false)
+  const [cloudStatus, setCloudStatus] = useState<CloudStatus | null>(null)
+  const [cloudBusy, setCloudBusy] = useState(false)
 
   useEffect(() => {
     void window.alphaK.getPhaseZeroStatus().then(setStatus)
@@ -70,13 +73,15 @@ export function App(): React.JSX.Element {
 
   useEffect(() => {
     let mounted = true
-    void Promise.all([window.alphaK.getVault(), window.alphaK.listJobs()])
-      .then(([vaultResult, jobsResult]) => {
+    void Promise.all([window.alphaK.getVault(), window.alphaK.listJobs(), window.alphaK.getCloudStatus()])
+      .then(([vaultResult, jobsResult, cloudResult]) => {
         if (!mounted) return
         if (vaultResult.ok) setVaultConnection(vaultResult.data)
         else setToast(formatIpcError('Vault 状态读取失败', vaultResult.error))
         if (jobsResult.ok) setJobs(jobsResult.data)
         else setToast(formatIpcError('Job 列表读取失败', jobsResult.error))
+        if (cloudResult.ok) setCloudStatus(cloudResult.data)
+        else setToast(formatIpcError('云端账户状态读取失败', cloudResult.error))
       })
       .catch((error: unknown) => {
         if (mounted) setToast(`Phase 1 服务连接失败：${errorMessage(error)}`)
@@ -87,6 +92,7 @@ export function App(): React.JSX.Element {
 
     const unsubscribe = window.alphaK.onAppEvent((event) => {
       if (event.type === 'job.updated') setJobs((current) => upsertJob(current, event.job))
+      if (event.type === 'cloud.status.changed') setCloudStatus(event.status)
     })
     return () => {
       mounted = false
@@ -162,6 +168,40 @@ export function App(): React.JSX.Element {
       notify(`索引重建失败：${errorMessage(error)}`)
     } finally {
       setVaultBusy(false)
+    }
+  }
+
+  async function signInWithGitHub(): Promise<void> {
+    setCloudBusy(true)
+    try {
+      const result = await window.alphaK.signInWithGitHub()
+      if (!result.ok) {
+        notify(formatIpcError('GitHub 登录启动失败', result.error))
+        return
+      }
+      setCloudStatus(result.data)
+      notify('已在系统浏览器打开 GitHub，请完成授权后返回 Alpha-K')
+    } catch (error) {
+      notify(`GitHub 登录启动失败：${errorMessage(error)}`)
+    } finally {
+      setCloudBusy(false)
+    }
+  }
+
+  async function signOutCloud(): Promise<void> {
+    setCloudBusy(true)
+    try {
+      const result = await window.alphaK.signOutCloud()
+      if (!result.ok) {
+        notify(formatIpcError('退出云端账户失败', result.error))
+        return
+      }
+      setCloudStatus(result.data)
+      notify('已退出 Supabase 账户，本地 Vault 保持不变')
+    } catch (error) {
+      notify(`退出云端账户失败：${errorMessage(error)}`)
+    } finally {
+      setCloudBusy(false)
     }
   }
 
@@ -298,8 +338,12 @@ export function App(): React.JSX.Element {
             <SettingsPage
               vaultConnection={vaultConnection}
               vaultBusy={vaultBusy}
+              cloudStatus={cloudStatus}
+              cloudBusy={cloudBusy}
               onSelectVault={selectVault}
               onRebuildVaultIndex={rebuildVaultIndex}
+              onSignInWithGitHub={signInWithGitHub}
+              onSignOutCloud={signOutCloud}
               notify={notify}
             />
           )}

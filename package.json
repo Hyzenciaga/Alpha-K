@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@qoder-ai/qoder-agent-sdk": "^1.0.15",
+    "@supabase/supabase-js": "^2.110.8",
     "better-sqlite3": "^13.0.1",
     "fast-xml-parser": "^5.10.1",
     "lucide-react": "^1.25.0",
@@ -68,6 +69,14 @@
     "files": [
       "out/**/*",
       "package.json"
+    ],
+    "protocols": [
+      {
+        "name": "Alpha-K authentication callback",
+        "schemes": [
+          "alpha-k"
+        ]
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity",

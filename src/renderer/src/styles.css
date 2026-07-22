@@ -2892,6 +2892,14 @@ p {
   font-size: 8px;
 }
 
+.vault-path-card small.cloud-account-note {
+  color: var(--subtle);
+}
+
+.cloud-account-card code {
+  white-space: normal;
+}
+
 .setting-actions {
   display: flex;
   gap: 15px;

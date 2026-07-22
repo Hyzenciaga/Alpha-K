@@ -5,8 +5,10 @@ import type { AppEvent, PhaseOneApi } from '../shared/ipc/phase-one-contract.js'
 import { PHASE_ONE_IPC_CHANNELS } from '../shared/ipc/phase-one-contract.js'
 import type { PhaseTwoApi } from '../shared/ipc/phase-two-contract.js'
 import { PHASE_TWO_IPC_CHANNELS } from '../shared/ipc/phase-two-contract.js'
+import type { CloudApi } from '../shared/ipc/cloud-contract.js'
+import { CLOUD_IPC_CHANNELS } from '../shared/ipc/cloud-contract.js'
 
-const api: AlphaKApi & PhaseOneApi & PhaseTwoApi = {
+const api: AlphaKApi & PhaseOneApi & PhaseTwoApi & CloudApi = {
   getPhaseZeroStatus: () => ipcRenderer.invoke(IPC_CHANNELS.getPhaseZeroStatus),
   refreshProviders: () => ipcRenderer.invoke(IPC_CHANNELS.refreshProviders),
   onPhaseZeroStatus: (listener) => {
@@ -32,6 +34,9 @@ const api: AlphaKApi & PhaseOneApi & PhaseTwoApi = {
     ipcRenderer.invoke(PHASE_TWO_IPC_CHANNELS.sourcesSync, { sourceId }),
   listSyncRuns: (filter) => ipcRenderer.invoke(PHASE_TWO_IPC_CHANNELS.syncRunsList, filter),
   listInboxItems: (filter) => ipcRenderer.invoke(PHASE_TWO_IPC_CHANNELS.inboxList, filter),
+  getCloudStatus: () => ipcRenderer.invoke(CLOUD_IPC_CHANNELS.statusGet),
+  signInWithGitHub: () => ipcRenderer.invoke(CLOUD_IPC_CHANNELS.signInGithub),
+  signOutCloud: () => ipcRenderer.invoke(CLOUD_IPC_CHANNELS.signOut),
   onAppEvent: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, appEvent: AppEvent): void => listener(appEvent)
     ipcRenderer.on(PHASE_ONE_IPC_CHANNELS.appEvent, handler)

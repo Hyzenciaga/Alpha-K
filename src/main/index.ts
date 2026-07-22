@@ -1,5 +1,5 @@
-import { join } from 'node:path'
-import { app, BrowserWindow, dialog, ipcMain, powerMonitor } from 'electron'
+import { join, resolve } from 'node:path'
+import { app, BrowserWindow, dialog, ipcMain, powerMonitor, shell } from 'electron'
 import type { PhaseZeroStatus, ProviderProbe } from '../shared/contracts.js'
 import { IPC_CHANNELS } from '../shared/contracts.js'
 import { PHASE_ONE_IPC_CHANNELS, type AppEvent } from '../shared/ipc/phase-one-contract.js'
@@ -19,6 +19,10 @@ import { SourceRepository } from './persistence/repositories/source-repository.j
 import { SyncRunRepository } from './persistence/repositories/sync-run-repository.js'
 import { VaultRepository } from './persistence/repositories/vault-repository.js'
 import { RssConnector } from './connectors/rss-connector.js'
+import { CloudAuthService } from './cloud/cloud-auth-service.js'
+import { readCloudConfig } from './cloud/cloud-config.js'
+import { SecureSessionStorage } from './cloud/secure-session-storage.js'
+import { registerCloudIpcHandlers } from './ipc/cloud-handlers.js'
 import { probeCodex } from './providers/codex-probe.js'
 import { probeQoder } from './providers/qoder-probe.js'
 
@@ -28,10 +32,29 @@ let database: AlphaKDatabase | null = null
 let jobQueueService: JobQueueService | null = null
 let sourceSyncWorker: SourceSyncWorker | null = null
 let syncRunRepository: SyncRunRepository | null = null
+let cloudAuthService: CloudAuthService | null = null
+let pendingAuthDeepLink: string | null = null
 let providers: ProviderProbe[] = []
 let backgroundTicks = 0
 let lastLifecycleEvent: PhaseZeroStatus['lastLifecycleEvent'] = 'started'
 const startedAt = new Date().toISOString()
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+
+if (!hasSingleInstanceLock) {
+  app.quit()
+} else {
+  registerProtocolClient()
+  app.on('second-instance', (_event, commandLine) => {
+    const deepLink = commandLine.find((argument) => argument.startsWith('alpha-k://'))
+    if (deepLink) void handleAuthDeepLink(deepLink)
+    focusMainWindow()
+  })
+}
+
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  void handleAuthDeepLink(url)
+})
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
@@ -146,6 +169,7 @@ function registerIpc(
   vaultService: VaultService,
   jobs: JobQueueService,
   sourceService: SourceService,
+  authService: CloudAuthService,
 ): void {
   ipcMain.handle(IPC_CHANNELS.getPhaseZeroStatus, () => currentStatus())
   ipcMain.handle(IPC_CHANNELS.refreshProviders, () => refreshProviders())
@@ -156,6 +180,7 @@ function registerIpc(
     selectVaultDirectory,
   })
   registerPhaseTwoIpcHandlers({ ipcMain, sourceService })
+  registerCloudIpcHandlers({ ipcMain, cloudAuthService: authService })
 }
 
 async function selectVaultDirectory(): Promise<string | undefined> {
@@ -184,6 +209,7 @@ app.on('window-all-closed', () => {
 })
 
 void app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) return
   database = openAlphaKDatabase(join(app.getPath('userData'), 'app.sqlite'))
   logPhaseZero('database-ready', database.health)
   const vaultRepository = new VaultRepository(database.database)
@@ -220,6 +246,13 @@ void app.whenReady().then(async () => {
     onSyncRunUpdated: (syncRun) => broadcastAppEvent({ type: 'source.sync.updated', syncRun }),
     onJobUpdated: (job) => broadcastAppEvent({ type: 'job.updated', job }),
   })
+  cloudAuthService = new CloudAuthService({
+    config: readCloudConfig(),
+    storage: new SecureSessionStorage(join(app.getPath('userData'), 'supabase-session.bin')),
+    openExternal: (url) => shell.openExternal(url),
+    onStatusChanged: (status) => broadcastAppEvent({ type: 'cloud.status.changed', status }),
+  })
+  await cloudAuthService.initialize()
   const ingestionService = new SourceIngestionService({
     database: database.database,
     knowledgeRepository,
@@ -243,8 +276,12 @@ void app.whenReady().then(async () => {
   console.info(
     `[phase-two] startup ${JSON.stringify({ recovery, reconciledSyncRuns, vault: vaultConnection.state })}`,
   )
-  registerIpc(vaultService, jobQueueService, sourceService)
+  registerIpc(vaultService, jobQueueService, sourceService, cloudAuthService)
   mainWindow = createWindow()
+  const startupDeepLink =
+    pendingAuthDeepLink ?? process.argv.find((argument) => argument.startsWith('alpha-k://')) ?? null
+  pendingAuthDeepLink = null
+  if (startupDeepLink) void handleAuthDeepLink(startupDeepLink)
   sourceSyncWorker.start()
 
   powerMonitor.on('suspend', () => {
@@ -269,6 +306,7 @@ void app.whenReady().then(async () => {
 
 app.on('will-quit', () => {
   sourceSyncWorker?.stop()
+  cloudAuthService?.dispose()
   const interruptedJobs = database
     ? database.database.transaction(() => {
         const jobs = jobQueueService?.interruptForShutdown() ?? 0
@@ -307,4 +345,34 @@ async function runLifecycleSmoke(window: BrowserWindow): Promise<void> {
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds))
+}
+
+function registerProtocolClient(): void {
+  if (process.defaultApp && process.argv[1]) {
+    app.setAsDefaultProtocolClient('alpha-k', process.execPath, [resolve(process.argv[1])])
+    return
+  }
+  app.setAsDefaultProtocolClient('alpha-k')
+}
+
+async function handleAuthDeepLink(url: string): Promise<void> {
+  if (!url.startsWith('alpha-k://')) return
+  if (!cloudAuthService) {
+    pendingAuthDeepLink = url
+    return
+  }
+  try {
+    const handled = await cloudAuthService.handleAuthCallback(url)
+    if (handled) focusMainWindow()
+  } catch (error) {
+    console.error('[cloud-auth] callback failed', error instanceof Error ? error.message : String(error))
+    focusMainWindow()
+  }
+}
+
+function focusMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
 }

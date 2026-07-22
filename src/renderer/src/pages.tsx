@@ -8,6 +8,7 @@ import {
   Check,
   ChevronRight,
   Clock3,
+  Cloud,
   Code2,
   Copy,
   Download,
@@ -18,11 +19,13 @@ import {
   Folder,
   FolderOpen,
   Gauge,
+  GitFork,
   Grid2X2,
   Heart,
   Inbox,
   Library,
   List,
+  LogOut,
   MoreHorizontal,
   Pause,
   Play,
@@ -38,6 +41,7 @@ import {
 import type { PhaseZeroStatus, ProviderProbeStatus } from '../../shared/contracts'
 import type { EnqueueJobInput, Job, JobStatus } from '../../shared/domain/job'
 import type { VaultConnection } from '../../shared/domain/vault'
+import type { CloudStatus } from '../../shared/domain/cloud-sync'
 import {
   activity,
   libraryItems,
@@ -709,14 +713,22 @@ function ProviderCard({
 export function SettingsPage({
   vaultConnection,
   vaultBusy,
+  cloudStatus,
+  cloudBusy,
   onSelectVault,
   onRebuildVaultIndex,
+  onSignInWithGitHub,
+  onSignOutCloud,
   notify,
 }: {
   vaultConnection: VaultConnection | null
   vaultBusy: boolean
+  cloudStatus: CloudStatus | null
+  cloudBusy: boolean
   onSelectVault: () => Promise<void>
   onRebuildVaultIndex: () => Promise<void>
+  onSignInWithGitHub: () => Promise<void>
+  onSignOutCloud: () => Promise<void>
   notify: Notify
 }): React.JSX.Element {
   const [launchAtLogin, setLaunchAtLogin] = useState(false)
@@ -733,6 +745,19 @@ export function SettingsPage({
         : vaultConnection.state === 'missing'
           ? '目录缺失'
           : '配置无效'
+  const cloudConfigured = cloudStatus?.configuration === 'ready'
+  const cloudSignedIn = cloudStatus?.auth === 'signed_in'
+  const cloudStateLabel = cloudStatus === null
+    ? '读取中'
+    : !cloudConfigured
+      ? '待配置'
+      : cloudSignedIn
+        ? '已登录'
+        : cloudStatus.auth === 'signing_in'
+          ? '等待授权'
+          : cloudStatus.auth === 'error'
+            ? '需要处理'
+            : '未登录'
   return (
     <div className="page page-settings">
       <PageHeader eyebrow="PREFERENCES" title="设置" description="管理 Vault、应用生命周期、通知以及本机 Agent 的默认行为。" />
@@ -745,6 +770,36 @@ export function SettingsPage({
           <button type="button">高级</button>
         </nav>
         <div className="settings-content">
+          <SettingsSection title="账户与状态同步" description="用 GitHub 登录，在多个 Alpha-K 客户端之间同步阅读与处理状态。">
+            <div className="vault-path-card cloud-account-card">
+              <span>{cloudSignedIn ? <GitFork size={20} /> : <Cloud size={20} />}</span>
+              <div>
+                <strong>
+                  {cloudStatus?.user?.displayName ?? cloudStatus?.user?.email ?? 'Supabase Cloud'}
+                  {' '}<Tag tone={cloudSignedIn ? 'success' : cloudStatus?.auth === 'error' ? 'warning' : undefined}>{cloudStateLabel}</Tag>
+                </strong>
+                <code>GitHub OAuth · Singapore · {cloudStatus?.projectRef ?? 'nuqdxhkwxlzutpdctmtb'}</code>
+                <small className={cloudStatus?.lastError ? undefined : 'cloud-account-note'}>
+                  {cloudStatus?.lastError ?? (cloudConfigured
+                    ? '只同步知识引用、已读、收藏和处理状态；Vault 文件始终留在本机。'
+                    : '请在项目根目录 .env.local 中填写 MAIN_VITE_SUPABASE_PUBLISHABLE_KEY。')}
+                </small>
+              </div>
+              {cloudSignedIn ? (
+                <Button variant="secondary" disabled={cloudBusy} icon={<LogOut size={15} />} onClick={() => void onSignOutCloud()}>
+                  退出登录
+                </Button>
+              ) : (
+                <Button disabled={cloudBusy || !cloudConfigured} icon={<GitFork size={15} />} onClick={() => void onSignInWithGitHub()}>
+                  使用 GitHub 登录
+                </Button>
+              )}
+            </div>
+            <div className="setting-actions">
+              <button type="button" onClick={() => notify('云端数据库由 migration 与 RLS 管理，不会上传本地文件')}><ShieldCheck size={16} />查看同步边界</button>
+              <button type="button" disabled={!cloudSignedIn} onClick={() => notify('增量同步 Worker 将在后端批次接入')}><RefreshCw size={16} />同步状态：{cloudStatus?.sync ?? 'disabled'}</button>
+            </div>
+          </SettingsSection>
           <SettingsSection title="Knowledge Vault" description="所有正式知识资产都保存在这个普通文件目录中。">
             <div className="vault-path-card">
               <span><Folder size={20} /></span>
