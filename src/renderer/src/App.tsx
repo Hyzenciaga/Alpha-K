@@ -19,21 +19,22 @@ import type { EnqueueJobInput, Job } from '@shared/domain/job'
 import type { IpcError } from '@shared/ipc/phase-one-contract'
 import type { VaultConnection } from '@shared/domain/vault'
 import { Button, IconButton, Modal, SearchField, SegmentedControl, Toast } from './components'
+import { InboxPage } from './InboxPage'
 import type { PageId } from './mock-data'
+import { getProductionPhaseTwoClient } from './phase-two-client'
+import { SourcesPage } from './SourcesPage'
 import {
   AgentsPage,
-  InboxPage,
   LibraryPage,
   QueryPage,
   ReportsPage,
   SettingsPage,
-  SourcesPage,
   TodayPage,
 } from './pages'
 
 const primaryNavigation: Array<{ id: PageId; label: string; icon: React.ReactNode; badge?: string }> = [
   { id: 'today', label: '今天', icon: <Home size={18} /> },
-  { id: 'inbox', label: '收件箱', icon: <Inbox size={18} />, badge: '7' },
+  { id: 'inbox', label: '收件箱', icon: <Inbox size={18} /> },
   { id: 'library', label: '知识库', icon: <Library size={18} /> },
   { id: 'sources', label: '订阅源', icon: <Rss size={18} /> },
   { id: 'query', label: '问答', icon: <MessageSquareText size={18} /> },
@@ -46,6 +47,7 @@ const utilityNavigation: Array<{ id: PageId; label: string; icon: React.ReactNod
 ]
 
 export function App(): React.JSX.Element {
+  const phaseTwoClient = getProductionPhaseTwoClient()
   const [activePage, setActivePage] = useState<PageId>('today')
   const [status, setStatus] = useState<PhaseZeroStatus | null>(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -275,9 +277,9 @@ export function App(): React.JSX.Element {
 
         <div className="page-scroll">
           {activePage === 'today' && <TodayPage onNavigate={navigate} jobs={jobs} onCreateJob={createJob} notify={notify} />}
-          {activePage === 'inbox' && <InboxPage notify={notify} />}
+          {activePage === 'inbox' && <InboxPage client={phaseTwoClient} vaultId={vaultConnection?.vault?.id ?? null} />}
           {activePage === 'library' && <LibraryPage notify={notify} />}
-          {activePage === 'sources' && <SourcesPage notify={notify} />}
+          {activePage === 'sources' && <SourcesPage client={phaseTwoClient} vaultId={vaultConnection?.vault?.id ?? null} notify={notify} />}
           {activePage === 'query' && <QueryPage notify={notify} />}
           {activePage === 'reports' && <ReportsPage notify={notify} />}
           {activePage === 'agents' && (
