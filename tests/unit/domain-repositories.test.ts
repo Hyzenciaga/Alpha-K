@@ -43,10 +43,20 @@ describe('Phase 1 domain repositories', () => {
       type: 'rss',
       name: '研究动态',
       schedule: { kind: 'interval', minutes: 60 },
-      config: { url: 'https://example.com/feed.xml' },
+      config: { feedUrl: 'https://example.com/feed.xml' },
       defaultLabels: ['AI'],
     })
     expect(source).toMatchObject({ id: SOURCE_ID, enabled: true, lastSyncAt: null })
+    expect(
+      sources.update(source.id, {
+        type: 'rss',
+        name: '研究动态更新',
+        config: { feedUrl: 'https://example.com/updated.xml', historyWindowDays: 14 },
+      }),
+    ).toMatchObject({ name: '研究动态更新', config: { historyWindowDays: 14 } })
+    expect(() =>
+      sources.update(source.id, { type: 'arxiv', config: { query: 'cat:cs.AI' } }),
+    ).toThrow('Source type cannot change')
 
     const knowledge = new KnowledgeRepository(connection.database, { now, createId: () => ITEM_ID })
     const item = knowledge.create({

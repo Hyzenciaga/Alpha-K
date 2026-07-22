@@ -1,16 +1,17 @@
-# Phase 1 Backend Contract
+# Phase 1 Contract and Integration
 
 ## Scope
 
-This branch owns the Phase 1 backend foundation:
+Phase 1 establishes the backend foundation and its renderer-facing integration:
 
 - `src/main/**`
 - `src/shared/domain/**`
 - `src/shared/ipc/**`
 - database migrations and repositories
 - backend unit and integration tests
+- preload CJS bridge and renderer integration for Vault, Jobs, and Provider probes
 
-Renderer implementation remains out of scope until the frontend and backend first versions are ready for IPC integration.
+Inbox, Sources, Query, Reports, and knowledge content remain explicitly marked mock data until their owning phases.
 
 ## Decisions
 
@@ -52,6 +53,7 @@ The preload bridge exposes an additive Phase 1 API while keeping Node.js unavail
 - `getVault()`
 - `selectVault()`
 - `rebuildVaultIndex()`
+- `createJob(input)`
 - `listJobs(filter?)`
 - `cancelJob(jobId)`
 - `retryJob(jobId)`

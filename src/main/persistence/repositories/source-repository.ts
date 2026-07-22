@@ -84,6 +84,9 @@ export class SourceRepository {
     const patch = UpdateSourceInputSchema.parse(input)
     const existing = this.getById(parsedId)
     if (!existing) return undefined
+    if (patch.type !== existing.type) {
+      throw new Error(`Source type cannot change from ${existing.type} to ${patch.type}.`)
+    }
     const updated = {
       ...existing,
       ...patch,
