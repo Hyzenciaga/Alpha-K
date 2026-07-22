@@ -1,37 +1,6 @@
 import Database from 'better-sqlite3'
 import type { DatabaseHealth } from '../../shared/contracts.js'
-
-type Migration = {
-  version: number
-  statements: string[]
-}
-
-const migrations: Migration[] = [
-  {
-    version: 1,
-    statements: [
-      `CREATE TABLE app_meta (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-      )`,
-      `CREATE TABLE phase_zero_documents (
-        id INTEGER PRIMARY KEY,
-        title TEXT NOT NULL,
-        body TEXT NOT NULL
-      )`,
-    ],
-  },
-  {
-    version: 2,
-    statements: [
-      `CREATE VIRTUAL TABLE phase_zero_documents_fts USING fts5(
-        title,
-        body,
-        tokenize='trigram'
-      )`,
-    ],
-  },
-]
+import { migrations } from './migrations/index.js'
 
 export type AlphaKDatabase = {
   database: Database.Database
@@ -100,16 +69,19 @@ function probeFts(database: Database.Database): {
   error?: string
 } {
   try {
-    database.exec('DELETE FROM phase_zero_documents_fts')
-    database
-      .prepare('INSERT INTO phase_zero_documents_fts (title, body) VALUES (?, ?)')
-      .run('Phase 0', '本地 Agent 驱动的知识管理客户端')
+    database.exec("CREATE VIRTUAL TABLE temp.alpha_k_fts_probe USING fts5(body, tokenize='trigram')")
+    database.prepare('INSERT INTO alpha_k_fts_probe (body) VALUES (?)').run('本地 Agent 驱动的知识管理客户端')
     const result = database
-      .prepare("SELECT COUNT(*) AS count FROM phase_zero_documents_fts WHERE phase_zero_documents_fts MATCH '知识管理'")
+      .prepare("SELECT COUNT(*) AS count FROM alpha_k_fts_probe WHERE alpha_k_fts_probe MATCH '知识管理'")
       .get() as { count: number }
-    database.exec('DELETE FROM phase_zero_documents_fts')
+    database.exec('DROP TABLE alpha_k_fts_probe')
     return { fts5: true, trigramChinese: result.count === 1 }
   } catch (error) {
+    try {
+      database.exec('DROP TABLE IF EXISTS alpha_k_fts_probe')
+    } catch {
+      // Preserve the original capability-probe error.
+    }
     return {
       fts5: false,
       trigramChinese: false,
