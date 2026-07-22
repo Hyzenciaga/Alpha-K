@@ -2,6 +2,12 @@ import { randomUUID } from 'node:crypto'
 import type Database from 'better-sqlite3'
 import { IdSchema } from '../../../shared/domain/common.js'
 import {
+  InboxItemListFilterSchema,
+  InboxItemSummarySchema,
+  type InboxItemListFilter,
+  type InboxItemSummary,
+} from '../../../shared/domain/inbox.js'
+import {
   CreateKnowledgeItemInputSchema,
   KnowledgeItemListFilterSchema,
   KnowledgeItemSchema,
@@ -42,6 +48,36 @@ type SearchRow = {
   snippet: string
 }
 
+type InboxRow = {
+  id: string
+  vault_id: string
+  source_id: string
+  source_name: string
+  source_type: string
+  external_id: string | null
+  canonical_url: string | null
+  title: string
+  authors_json: string
+  published_at: string | null
+  fetched_at: string
+  status: string
+  artifact_id: string | null
+  excerpt: string | null
+  default_labels_json: string
+}
+
+export type UpdateKnowledgeItemFromDiscoveryInput = Pick<
+  CreateKnowledgeItemInput,
+  | 'externalId'
+  | 'canonicalUrl'
+  | 'title'
+  | 'authors'
+  | 'publishedAt'
+  | 'fetchedAt'
+  | 'status'
+  | 'contentHash'
+>
+
 export class KnowledgeRepository {
   constructor(
     private readonly database: Database.Database,
@@ -51,9 +87,9 @@ export class KnowledgeRepository {
     } = {},
   ) {}
 
-  create(input: CreateKnowledgeItemInput): KnowledgeItem {
+  create(input: CreateKnowledgeItemInput, options: { id?: string } = {}): KnowledgeItem {
     const parsed = CreateKnowledgeItemInputSchema.parse(input)
-    const id = this.dependencies.createId?.() ?? randomUUID()
+    const id = IdSchema.parse(options.id ?? this.dependencies.createId?.() ?? randomUUID())
     const now = this.now()
     this.database
       .prepare(
@@ -96,6 +132,55 @@ export class KnowledgeRepository {
     return row ? mapKnowledgeItem(row) : undefined
   }
 
+  findBySourceCanonicalUrl(sourceId: string, canonicalUrl: string): KnowledgeItem | undefined {
+    const row = this.database
+      .prepare('SELECT * FROM knowledge_items WHERE source_id = ? AND canonical_url = ? LIMIT 1')
+      .get(IdSchema.parse(sourceId), canonicalUrl) as KnowledgeItemRow | undefined
+    return row ? mapKnowledgeItem(row) : undefined
+  }
+
+  findBySourceContentHash(sourceId: string, contentHash: string): KnowledgeItem | undefined {
+    const row = this.database
+      .prepare(
+        `SELECT * FROM knowledge_items
+         WHERE source_id = ? AND content_hash = ?
+         ORDER BY created_at LIMIT 1`,
+      )
+      .get(IdSchema.parse(sourceId), contentHash) as KnowledgeItemRow | undefined
+    return row ? mapKnowledgeItem(row) : undefined
+  }
+
+  updateFromDiscovery(
+    id: string,
+    input: UpdateKnowledgeItemFromDiscoveryInput,
+  ): KnowledgeItem | undefined {
+    const parsedId = IdSchema.parse(id)
+    const parsed = CreateKnowledgeItemInputSchema.omit({ vaultId: true, sourceId: true, primaryArtifactId: true }).parse(
+      input,
+    )
+    const now = this.now()
+    const result = this.database
+      .prepare(
+        `UPDATE knowledge_items SET
+          external_id = ?, canonical_url = ?, title = ?, authors_json = ?,
+          published_at = ?, fetched_at = ?, status = ?, content_hash = ?, updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(
+        parsed.externalId,
+        parsed.canonicalUrl,
+        parsed.title,
+        JSON.stringify(parsed.authors),
+        parsed.publishedAt,
+        parsed.fetchedAt,
+        parsed.status,
+        parsed.contentHash,
+        now,
+        parsedId,
+      )
+    return result.changes === 1 ? this.getById(parsedId) : undefined
+  }
+
   list(filter: KnowledgeItemListFilter): KnowledgeItem[] {
     const parsed = KnowledgeItemListFilterSchema.parse(filter)
     const conditions = ['vault_id = ?']
@@ -113,6 +198,81 @@ export class KnowledgeRepository {
       )
       .all(...parameters) as KnowledgeItemRow[]
     return rows.map(mapKnowledgeItem)
+  }
+
+  listInboxItems(filter: InboxItemListFilter): InboxItemSummary[] {
+    const parsed = InboxItemListFilterSchema.parse(filter)
+    const conditions = [
+      'knowledge_items.vault_id = ?',
+      "knowledge_items.status IN ('discovered', 'fetched', 'extracted', 'failed')",
+    ]
+    const parameters: unknown[] = [parsed.vaultId]
+    if (parsed.sourceIds?.length) {
+      conditions.push(`knowledge_items.source_id IN (${parsed.sourceIds.map(() => '?').join(', ')})`)
+      parameters.push(...parsed.sourceIds)
+    }
+    if (parsed.statuses?.length) {
+      conditions.push(`knowledge_items.status IN (${parsed.statuses.map(() => '?').join(', ')})`)
+      parameters.push(...parsed.statuses)
+    }
+    if (parsed.search?.trim()) {
+      conditions.push(
+        `(knowledge_items.title LIKE ? ESCAPE '\\'
+          OR knowledge_items.authors_json LIKE ? ESCAPE '\\'
+          OR knowledge_items_fts.summary LIKE ? ESCAPE '\\')`,
+      )
+      const query = `%${escapeLike(parsed.search.trim())}%`
+      parameters.push(query, query, query)
+    }
+    parameters.push(parsed.limit, parsed.offset)
+    const rows = this.database
+      .prepare(
+        `SELECT
+          knowledge_items.id,
+          knowledge_items.vault_id,
+          knowledge_items.source_id,
+          sources.name AS source_name,
+          sources.type AS source_type,
+          knowledge_items.external_id,
+          knowledge_items.canonical_url,
+          knowledge_items.title,
+          knowledge_items.authors_json,
+          knowledge_items.published_at,
+          knowledge_items.fetched_at,
+          knowledge_items.status,
+          artifacts.id AS artifact_id,
+          NULLIF(knowledge_items_fts.summary, '') AS excerpt,
+          sources.default_labels_json
+         FROM knowledge_items
+         JOIN sources ON sources.id = knowledge_items.source_id
+         LEFT JOIN artifacts ON artifacts.id = knowledge_items.primary_artifact_id
+         LEFT JOIN knowledge_items_fts
+           ON knowledge_items_fts.knowledge_item_id = knowledge_items.id
+         WHERE ${conditions.join(' AND ')}
+         ORDER BY COALESCE(knowledge_items.published_at, knowledge_items.fetched_at) DESC,
+           knowledge_items.created_at DESC
+         LIMIT ? OFFSET ?`,
+      )
+      .all(...parameters) as InboxRow[]
+    return rows.map((row) =>
+      InboxItemSummarySchema.parse({
+        id: row.id,
+        vaultId: row.vault_id,
+        sourceId: row.source_id,
+        sourceName: row.source_name,
+        sourceType: row.source_type,
+        externalId: row.external_id,
+        canonicalUrl: row.canonical_url,
+        title: row.title,
+        authors: JSON.parse(row.authors_json) as unknown,
+        publishedAt: row.published_at,
+        fetchedAt: row.fetched_at,
+        status: row.status,
+        primaryArtifactId: row.artifact_id,
+        excerpt: row.excerpt,
+        labels: JSON.parse(row.default_labels_json) as unknown,
+      }),
+    )
   }
 
   updateStatus(id: string, status: KnowledgeItem['status']): KnowledgeItem | undefined {
@@ -231,4 +391,8 @@ function mapKnowledgeItem(row: KnowledgeItemRow): KnowledgeItem {
 
 function splitSearchList(value: string): string[] {
   return value ? value.split('\n').filter(Boolean) : []
+}
+
+function escapeLike(value: string): string {
+  return value.replaceAll('\\', '\\\\').replaceAll('%', '\\%').replaceAll('_', '\\_')
 }

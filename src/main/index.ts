@@ -4,13 +4,21 @@ import type { PhaseZeroStatus, ProviderProbe } from '../shared/contracts.js'
 import { IPC_CHANNELS } from '../shared/contracts.js'
 import { PHASE_ONE_IPC_CHANNELS, type AppEvent } from '../shared/ipc/phase-one-contract.js'
 import { JobQueueService } from './application/job-queue-service.js'
+import { SourceIngestionService } from './application/source-ingestion-service.js'
+import { SourceService } from './application/source-service.js'
+import { SourceSyncWorker } from './application/source-sync-worker.js'
 import { VaultService } from './application/vault-service.js'
 import { registerPhaseOneIpcHandlers } from './ipc/phase-one-handlers.js'
+import { registerPhaseTwoIpcHandlers } from './ipc/phase-two-handlers.js'
 import { shouldHideWindowOnClose } from './lifecycle/window-lifecycle.js'
 import { openAlphaKDatabase, type AlphaKDatabase } from './persistence/database.js'
+import { ArtifactRepository } from './persistence/repositories/artifact-repository.js'
 import { JobRepository } from './persistence/repositories/job-repository.js'
 import { KnowledgeRepository } from './persistence/repositories/knowledge-repository.js'
+import { SourceRepository } from './persistence/repositories/source-repository.js'
+import { SyncRunRepository } from './persistence/repositories/sync-run-repository.js'
 import { VaultRepository } from './persistence/repositories/vault-repository.js'
+import { RssConnector } from './connectors/rss-connector.js'
 import { probeCodex } from './providers/codex-probe.js'
 import { probeQoder } from './providers/qoder-probe.js'
 
@@ -18,6 +26,8 @@ let mainWindow: BrowserWindow | null = null
 let isQuitting = false
 let database: AlphaKDatabase | null = null
 let jobQueueService: JobQueueService | null = null
+let sourceSyncWorker: SourceSyncWorker | null = null
+let syncRunRepository: SyncRunRepository | null = null
 let providers: ProviderProbe[] = []
 let backgroundTicks = 0
 let lastLifecycleEvent: PhaseZeroStatus['lastLifecycleEvent'] = 'started'
@@ -132,7 +142,11 @@ async function safelyProbeProvider(
   }
 }
 
-function registerIpc(vaultService: VaultService, jobs: JobQueueService): void {
+function registerIpc(
+  vaultService: VaultService,
+  jobs: JobQueueService,
+  sourceService: SourceService,
+): void {
   ipcMain.handle(IPC_CHANNELS.getPhaseZeroStatus, () => currentStatus())
   ipcMain.handle(IPC_CHANNELS.refreshProviders, () => refreshProviders())
   registerPhaseOneIpcHandlers({
@@ -141,6 +155,7 @@ function registerIpc(vaultService: VaultService, jobs: JobQueueService): void {
     jobQueueService: jobs,
     selectVaultDirectory,
   })
+  registerPhaseTwoIpcHandlers({ ipcMain, sourceService })
 }
 
 async function selectVaultDirectory(): Promise<string | undefined> {
@@ -173,15 +188,64 @@ void app.whenReady().then(async () => {
   logPhaseZero('database-ready', database.health)
   const vaultRepository = new VaultRepository(database.database)
   const knowledgeRepository = new KnowledgeRepository(database.database)
+  const artifactRepository = new ArtifactRepository(database.database)
+  const sourceRepository = new SourceRepository(database.database)
+  const jobRepository = new JobRepository(database.database)
+  syncRunRepository = new SyncRunRepository(database.database)
+  const rssConnector = new RssConnector()
   const vaultService = new VaultService(vaultRepository, knowledgeRepository)
-  jobQueueService = new JobQueueService(new JobRepository(database.database), (job) => {
+  jobQueueService = new JobQueueService(jobRepository, (job) => {
     broadcastAppEvent({ type: 'job.updated', job })
+    if (job.type !== 'source.sync') return
+    const syncRun =
+      job.status === 'cancelled'
+        ? syncRunRepository?.cancelByJobId(job.id)
+        : job.status === 'queued'
+          ? syncRunRepository?.requeueByJobId(job.id)
+          : undefined
+    if (syncRun) broadcastAppEvent({ type: 'source.sync.updated', syncRun })
   })
   const recovery = jobQueueService.recoverOnStartup()
+  const reconciledSyncRuns = syncRunRepository.reconcileJobStatuses()
   const vaultConnection = await vaultService.getConnection()
-  console.info(`[phase-one] startup ${JSON.stringify({ recovery, vault: vaultConnection.state })}`)
-  registerIpc(vaultService, jobQueueService)
+  const sourceService = new SourceService({
+    database: database.database,
+    sourceRepository,
+    syncRunRepository,
+    jobRepository,
+    knowledgeRepository,
+    rssConnector,
+    onSourceUpdated: (source) => broadcastAppEvent({ type: 'source.updated', source }),
+    onSourceDeleted: (sourceId) => broadcastAppEvent({ type: 'source.deleted', sourceId }),
+    onSyncRunUpdated: (syncRun) => broadcastAppEvent({ type: 'source.sync.updated', syncRun }),
+    onJobUpdated: (job) => broadcastAppEvent({ type: 'job.updated', job }),
+  })
+  const ingestionService = new SourceIngestionService({
+    database: database.database,
+    knowledgeRepository,
+    artifactRepository,
+    vaultRepository,
+    rssConnector,
+  })
+  sourceSyncWorker = new SourceSyncWorker({
+    database: database.database,
+    jobRepository,
+    syncRunRepository,
+    sourceRepository,
+    ingestionService,
+    workerId: `source-sync:${process.pid}`,
+    onJobUpdated: (job) => broadcastAppEvent({ type: 'job.updated', job }),
+    onSyncRunUpdated: (syncRun) => broadcastAppEvent({ type: 'source.sync.updated', syncRun }),
+    onSourceUpdated: (source) => broadcastAppEvent({ type: 'source.updated', source }),
+    onInboxChanged: (itemIds) => broadcastAppEvent({ type: 'inbox.changed', itemIds }),
+    onError: (error) => console.error('[phase-two] source worker error', error),
+  })
+  console.info(
+    `[phase-two] startup ${JSON.stringify({ recovery, reconciledSyncRuns, vault: vaultConnection.state })}`,
+  )
+  registerIpc(vaultService, jobQueueService, sourceService)
   mainWindow = createWindow()
+  sourceSyncWorker.start()
 
   powerMonitor.on('suspend', () => {
     lastLifecycleEvent = 'suspend'
@@ -204,7 +268,14 @@ void app.whenReady().then(async () => {
 })
 
 app.on('will-quit', () => {
-  const interruptedJobs = jobQueueService?.interruptForShutdown() ?? 0
+  sourceSyncWorker?.stop()
+  const interruptedJobs = database
+    ? database.database.transaction(() => {
+        const jobs = jobQueueService?.interruptForShutdown() ?? 0
+        syncRunRepository?.interruptAllRunning()
+        return jobs
+      })()
+    : 0
   if (interruptedJobs > 0) console.info(`[phase-one] interrupted-jobs-on-shutdown ${interruptedJobs}`)
   database?.close()
 })

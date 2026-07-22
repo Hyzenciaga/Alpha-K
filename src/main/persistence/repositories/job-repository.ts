@@ -7,6 +7,7 @@ import {
   type EnqueueJobInput,
   type Job,
   type JobListFilter,
+  type JobType,
 } from '../../../shared/domain/job.js'
 
 type JobRow = {
@@ -122,24 +123,27 @@ export class JobRepository {
       .run(now, now).changes
   }
 
-  claimNext(workerId: string, leaseDurationMs: number): Job | undefined {
+  claimNext(workerId: string, leaseDurationMs: number, types?: JobType[]): Job | undefined {
     if (!workerId.trim()) throw new Error('workerId is required.')
     if (!Number.isFinite(leaseDurationMs) || leaseDurationMs <= 0) {
       throw new Error('leaseDurationMs must be positive.')
     }
     return this.database.transaction(() => {
       const now = this.now()
+      const typeCondition = types?.length ? `AND type IN (${types.map(() => '?').join(', ')})` : ''
+      const parameters: unknown[] = [now, ...(types ?? [])]
       const candidate = this.database
         .prepare(
           `SELECT id FROM jobs
            WHERE status = 'queued' AND run_after <= ?
+             ${typeCondition}
            ORDER BY
              CASE priority WHEN 'interactive' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,
              run_after ASC,
              created_at ASC
            LIMIT 1`,
         )
-        .get(now) as { id: string } | undefined
+        .get(...parameters) as { id: string } | undefined
       if (!candidate) return undefined
 
       const leaseExpiresAt = new Date(Date.parse(now) + leaseDurationMs).toISOString()
