@@ -11,7 +11,10 @@ import { openAlphaKDatabase } from '../../src/main/persistence/database.js'
 import { JobRepository } from '../../src/main/persistence/repositories/job-repository.js'
 import { KnowledgeRepository } from '../../src/main/persistence/repositories/knowledge-repository.js'
 import { VaultRepository } from '../../src/main/persistence/repositories/vault-repository.js'
-import { PHASE_ONE_IPC_CHANNELS, type IpcResult } from '../../src/shared/ipc/phase-one.js'
+import {
+  PHASE_ONE_IPC_CHANNELS,
+  type IpcResult,
+} from '../../src/shared/ipc/phase-one-contract.js'
 
 const cleanupPaths: string[] = []
 const JOB_ID = '21111111-1111-4111-8111-111111111111'
@@ -26,7 +29,6 @@ describe('Phase 1 IPC handlers', () => {
     cleanupPaths.push(directory)
     const connection = openAlphaKDatabase(join(directory, 'app.sqlite'))
     const jobRepository = new JobRepository(connection.database, { createId: () => JOB_ID })
-    const queued = jobRepository.enqueue({ type: 'index.rebuild', priority: 'background' })
     const jobs = new JobQueueService(jobRepository)
     const vaults = new VaultService(
       new VaultRepository(connection.database),
@@ -40,8 +42,14 @@ describe('Phase 1 IPC handlers', () => {
       selectVaultDirectory: async () => undefined,
     })
 
+    const created = await ipc.invoke<IpcResult<{ id: string; status: string }>>(
+      PHASE_ONE_IPC_CHANNELS.jobsCreate,
+      { type: 'index.rebuild', priority: 'background' },
+    )
+    expect(created).toMatchObject({ ok: true, data: { id: JOB_ID, status: 'queued' } })
+
     const listed = await ipc.invoke<IpcResult<Array<{ id: string }>>>(PHASE_ONE_IPC_CHANNELS.jobsList, {})
-    expect(listed).toEqual({ ok: true, data: [expect.objectContaining({ id: queued.id })] })
+    expect(listed).toEqual({ ok: true, data: [expect.objectContaining({ id: JOB_ID })] })
 
     const invalid = await ipc.invoke<IpcResult<unknown>>(PHASE_ONE_IPC_CHANNELS.jobsCancel, {
       jobId: 'not-a-uuid',
@@ -49,7 +57,7 @@ describe('Phase 1 IPC handlers', () => {
     expect(invalid).toMatchObject({ ok: false, error: { code: 'VALIDATION_ERROR' } })
 
     const cancelled = await ipc.invoke<IpcResult<{ status: string }>>(PHASE_ONE_IPC_CHANNELS.jobsCancel, {
-      jobId: queued.id,
+      jobId: JOB_ID,
     })
     expect(cancelled).toMatchObject({ ok: true, data: { status: 'cancelled' } })
 

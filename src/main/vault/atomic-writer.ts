@@ -110,4 +110,3 @@ async function syncDirectory(path: string): Promise<void> {
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && 'code' in error
 }
-

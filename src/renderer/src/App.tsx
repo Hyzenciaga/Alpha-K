@@ -15,6 +15,9 @@ import {
   Sparkles,
 } from 'lucide-react'
 import type { PhaseZeroStatus } from '@shared/contracts'
+import type { EnqueueJobInput, Job } from '@shared/domain/job'
+import type { IpcError } from '@shared/ipc/phase-one-contract'
+import type { VaultConnection } from '@shared/domain/vault'
 import { Button, IconButton, Modal, SearchField, SegmentedControl, Toast } from './components'
 import type { PageId } from './mock-data'
 import {
@@ -53,10 +56,40 @@ export function App(): React.JSX.Element {
   const [captureKind, setCaptureKind] = useState<'note' | 'link'>('note')
   const [captureTitle, setCaptureTitle] = useState('')
   const [captureContent, setCaptureContent] = useState('')
+  const [vaultConnection, setVaultConnection] = useState<VaultConnection | null>(null)
+  const [jobs, setJobs] = useState<Job[]>([])
+  const [phaseOneLoading, setPhaseOneLoading] = useState(true)
+  const [vaultBusy, setVaultBusy] = useState(false)
 
   useEffect(() => {
     void window.alphaK.getPhaseZeroStatus().then(setStatus)
     return window.alphaK.onPhaseZeroStatus(setStatus)
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+    void Promise.all([window.alphaK.getVault(), window.alphaK.listJobs()])
+      .then(([vaultResult, jobsResult]) => {
+        if (!mounted) return
+        if (vaultResult.ok) setVaultConnection(vaultResult.data)
+        else setToast(formatIpcError('Vault 状态读取失败', vaultResult.error))
+        if (jobsResult.ok) setJobs(jobsResult.data)
+        else setToast(formatIpcError('Job 列表读取失败', jobsResult.error))
+      })
+      .catch((error: unknown) => {
+        if (mounted) setToast(`Phase 1 服务连接失败：${errorMessage(error)}`)
+      })
+      .finally(() => {
+        if (mounted) setPhaseOneLoading(false)
+      })
+
+    const unsubscribe = window.alphaK.onAppEvent((event) => {
+      if (event.type === 'job.updated') setJobs((current) => upsertJob(current, event.job))
+    })
+    return () => {
+      mounted = false
+      unsubscribe()
+    }
   }, [])
 
   useEffect(() => {
@@ -94,6 +127,84 @@ export function App(): React.JSX.Element {
       notify('本机 Agent 状态已更新')
     } finally {
       setRefreshing(false)
+    }
+  }
+
+  async function selectVault(): Promise<void> {
+    setVaultBusy(true)
+    try {
+      const result = await window.alphaK.selectVault()
+      if (!result.ok) {
+        notify(formatIpcError('Vault 初始化或恢复失败', result.error))
+        return
+      }
+      setVaultConnection(result.data)
+      notify(result.data.state === 'ready' ? 'Vault 已就绪' : '未更改 Vault 设置')
+    } catch (error) {
+      notify(`Vault 选择失败：${errorMessage(error)}`)
+    } finally {
+      setVaultBusy(false)
+    }
+  }
+
+  async function rebuildVaultIndex(): Promise<void> {
+    setVaultBusy(true)
+    try {
+      const result = await window.alphaK.rebuildVaultIndex()
+      if (!result.ok) {
+        notify(formatIpcError('索引重建失败', result.error))
+        return
+      }
+      notify(`索引重建完成：${result.data.indexed} 条，跳过 ${result.data.skipped} 条`)
+    } catch (error) {
+      notify(`索引重建失败：${errorMessage(error)}`)
+    } finally {
+      setVaultBusy(false)
+    }
+  }
+
+  async function createJob(input: EnqueueJobInput): Promise<void> {
+    try {
+      const result = await window.alphaK.createJob({
+        ...input,
+        vaultId: input.vaultId ?? vaultConnection?.vault?.id ?? null,
+      })
+      if (!result.ok) {
+        notify(formatIpcError('Job 创建失败', result.error))
+        return
+      }
+      setJobs((current) => upsertJob(current, result.data))
+      notify(`Job 已创建：${result.data.type}`)
+    } catch (error) {
+      notify(`Job 创建失败：${errorMessage(error)}`)
+    }
+  }
+
+  async function cancelJob(jobId: string): Promise<void> {
+    try {
+      const result = await window.alphaK.cancelJob(jobId)
+      if (!result.ok) {
+        notify(formatIpcError('Job 取消失败', result.error))
+        return
+      }
+      setJobs((current) => upsertJob(current, result.data))
+      notify('Job 已取消')
+    } catch (error) {
+      notify(`Job 取消失败：${errorMessage(error)}`)
+    }
+  }
+
+  async function retryJob(jobId: string): Promise<void> {
+    try {
+      const result = await window.alphaK.retryJob(jobId)
+      if (!result.ok) {
+        notify(formatIpcError('Job 恢复失败', result.error))
+        return
+      }
+      setJobs((current) => upsertJob(current, result.data))
+      notify('Job 已重新排队')
+    } catch (error) {
+      notify(`Job 恢复失败：${errorMessage(error)}`)
     }
   }
 
@@ -138,8 +249,11 @@ export function App(): React.JSX.Element {
 
         <div className="sidebar-footer">
           <button type="button" onClick={() => navigate('settings')}>
-            <span className="vault-status"><i /><Sparkles size={16} /></span>
-            <span><strong>Vault 已同步</strong><small>2 分钟前 · 128 items</small></span>
+            <span className="vault-status"><i className={vaultConnection?.state === 'ready' ? undefined : 'is-warning'} /><Sparkles size={16} /></span>
+            <span>
+              <strong>{vaultConnection?.state === 'ready' ? 'Vault 已就绪' : vaultConnection ? 'Vault 需要设置' : '正在读取 Vault'}</strong>
+              <small>{vaultConnection?.vault?.path ?? '选择本地目录以初始化或恢复'}</small>
+            </span>
           </button>
         </div>
       </aside>
@@ -151,7 +265,7 @@ export function App(): React.JSX.Element {
           </form>
           <div className="topbar-status" aria-label="应用状态">
             <span><i />本地运行中</span>
-            <small>{status ? `后台 ${status.backgroundTicks}` : '正在连接'}</small>
+            <small>{phaseOneLoading ? 'Phase 1 正在连接' : `${jobs.length} Jobs · 后台 ${status?.backgroundTicks ?? '—'}`}</small>
           </div>
           <div className="topbar-actions">
             <IconButton label="通知" onClick={() => notify('没有需要处理的新通知')}><Bell size={18} /></IconButton>
@@ -160,16 +274,33 @@ export function App(): React.JSX.Element {
         </header>
 
         <div className="page-scroll">
-          {activePage === 'today' && <TodayPage onNavigate={navigate} notify={notify} />}
+          {activePage === 'today' && <TodayPage onNavigate={navigate} jobs={jobs} onCreateJob={createJob} notify={notify} />}
           {activePage === 'inbox' && <InboxPage notify={notify} />}
           {activePage === 'library' && <LibraryPage notify={notify} />}
           {activePage === 'sources' && <SourcesPage notify={notify} />}
           {activePage === 'query' && <QueryPage notify={notify} />}
           {activePage === 'reports' && <ReportsPage notify={notify} />}
           {activePage === 'agents' && (
-            <AgentsPage status={status} refreshing={refreshing} onRefresh={() => void refreshProviders()} notify={notify} />
+            <AgentsPage
+              status={status}
+              jobs={jobs}
+              refreshing={refreshing}
+              onRefresh={() => void refreshProviders()}
+              onCreateJob={createJob}
+              onCancelJob={cancelJob}
+              onRetryJob={retryJob}
+              notify={notify}
+            />
           )}
-          {activePage === 'settings' && <SettingsPage notify={notify} />}
+          {activePage === 'settings' && (
+            <SettingsPage
+              vaultConnection={vaultConnection}
+              vaultBusy={vaultBusy}
+              onSelectVault={selectVault}
+              onRebuildVaultIndex={rebuildVaultIndex}
+              notify={notify}
+            />
+          )}
         </div>
       </main>
 
@@ -209,6 +340,20 @@ export function App(): React.JSX.Element {
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>
   )
+}
+
+function upsertJob(current: Job[], updated: Job): Job[] {
+  return [updated, ...current.filter((job) => job.id !== updated.id)].sort((left, right) =>
+    right.updatedAt.localeCompare(left.updatedAt),
+  )
+}
+
+function formatIpcError(context: string, error: IpcError): string {
+  return `${context}（${error.code}）：${error.message}`
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 function NavItem({

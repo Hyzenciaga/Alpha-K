@@ -1,8 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AlphaKApi, PhaseZeroStatus } from '../shared/contracts.js'
 import { IPC_CHANNELS } from '../shared/contracts.js'
-import type { AppEvent, PhaseOneApi } from '../shared/ipc/phase-one.js'
-import { PHASE_ONE_IPC_CHANNELS } from '../shared/ipc/phase-one.js'
+import type { AppEvent, PhaseOneApi } from '../shared/ipc/phase-one-contract.js'
+import { PHASE_ONE_IPC_CHANNELS } from '../shared/ipc/phase-one-contract.js'
 
 const api: AlphaKApi & PhaseOneApi = {
   getPhaseZeroStatus: () => ipcRenderer.invoke(IPC_CHANNELS.getPhaseZeroStatus),
@@ -15,6 +15,7 @@ const api: AlphaKApi & PhaseOneApi = {
   getVault: () => ipcRenderer.invoke(PHASE_ONE_IPC_CHANNELS.vaultGet),
   selectVault: () => ipcRenderer.invoke(PHASE_ONE_IPC_CHANNELS.vaultSelect),
   rebuildVaultIndex: () => ipcRenderer.invoke(PHASE_ONE_IPC_CHANNELS.vaultRebuildIndex),
+  createJob: (input) => ipcRenderer.invoke(PHASE_ONE_IPC_CHANNELS.jobsCreate, input),
   listJobs: (filter = {}) => ipcRenderer.invoke(PHASE_ONE_IPC_CHANNELS.jobsList, filter),
   cancelJob: (jobId) => ipcRenderer.invoke(PHASE_ONE_IPC_CHANNELS.jobsCancel, { jobId }),
   retryJob: (jobId) => ipcRenderer.invoke(PHASE_ONE_IPC_CHANNELS.jobsRetry, { jobId }),

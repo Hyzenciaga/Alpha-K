@@ -1,11 +1,11 @@
 import { z } from 'zod'
 import { IdSchema } from '../domain/common.js'
-import { JobListFilterSchema, JobSchema, type Job, type JobListFilter } from '../domain/job.js'
-import { VaultConnectionSchema, type VaultConnection } from '../domain/vault.js'
-import {
-  SearchIndexRebuildReportSchema,
-  type SearchIndexRebuildReport,
-} from '../domain/vault-index.js'
+import { EnqueueJobInputSchema, JobListFilterSchema, JobSchema } from '../domain/job.js'
+import { VaultConnectionSchema } from '../domain/vault.js'
+import { SearchIndexRebuildReportSchema } from '../domain/vault-index.js'
+
+export { PHASE_ONE_IPC_CHANNELS } from './phase-one-contract.js'
+export type { AppEvent, IpcError, IpcResult, PhaseOneApi } from './phase-one-contract.js'
 
 export const IpcErrorCodeSchema = z.enum([
   'VALIDATION_ERROR',
@@ -26,43 +26,20 @@ export const IpcErrorSchema = z
   })
   .strict()
 
-export type IpcError = z.infer<typeof IpcErrorSchema>
-export type IpcResult<T> = { ok: true; data: T } | { ok: false; error: IpcError }
-
 export const JobIdRequestSchema = z.object({ jobId: IdSchema }).strict()
 
 export const AppEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('job.updated'), job: JobSchema }).strict(),
 ])
 
-export type AppEvent = z.infer<typeof AppEventSchema>
-
-export const PHASE_ONE_IPC_CHANNELS = {
-  vaultGet: 'vault:get',
-  vaultSelect: 'vault:select',
-  vaultRebuildIndex: 'vault:rebuild-index',
-  jobsList: 'jobs:list',
-  jobsCancel: 'jobs:cancel',
-  jobsRetry: 'jobs:retry',
-  appEvent: 'app:event',
-} as const
-
-export type PhaseOneApi = {
-  getVault: () => Promise<IpcResult<VaultConnection>>
-  selectVault: () => Promise<IpcResult<VaultConnection>>
-  rebuildVaultIndex: () => Promise<IpcResult<SearchIndexRebuildReport>>
-  listJobs: (filter?: JobListFilter) => Promise<IpcResult<Job[]>>
-  cancelJob: (jobId: string) => Promise<IpcResult<Job>>
-  retryJob: (jobId: string) => Promise<IpcResult<Job>>
-  onAppEvent: (listener: (event: AppEvent) => void) => () => void
-}
-
 export const PhaseOneIpcResponseSchemas = {
   vaultGet: VaultConnectionSchema,
   vaultSelect: VaultConnectionSchema,
   vaultRebuildIndex: SearchIndexRebuildReportSchema,
+  jobsCreate: JobSchema,
   jobsList: z.array(JobSchema),
   jobsCancel: JobSchema,
   jobsRetry: JobSchema,
+  jobsCreateRequest: EnqueueJobInputSchema,
   jobsListRequest: JobListFilterSchema,
 } as const

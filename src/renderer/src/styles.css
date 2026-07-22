@@ -324,6 +324,10 @@ p {
   background: #7caa87;
 }
 
+.vault-status i.is-warning {
+  background: #c18a3f;
+}
+
 .sidebar-footer strong,
 .sidebar-footer small {
   display: block;
@@ -337,8 +341,11 @@ p {
 
 .sidebar-footer small {
   margin-top: 3px;
+  max-width: 154px;
+  overflow: hidden;
   color: var(--sidebar-muted);
   font-size: 9px;
+  text-overflow: ellipsis;
 }
 
 .sidebar-collapsed .brand-copy,
@@ -508,6 +515,24 @@ p {
   flex: none;
   align-items: center;
   gap: 9px;
+}
+
+.phase-scope-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -17px 0 20px;
+  padding: 9px 12px;
+  border: 1px solid #ddcfaf;
+  border-radius: 9px;
+  color: #725c39;
+  background: #f4ecdc;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.phase-scope-notice svg {
+  flex: none;
 }
 
 .button {
@@ -729,6 +754,11 @@ p {
 .tag-warning {
   color: #885f27;
   background: var(--amber-soft);
+}
+
+.tag-danger {
+  color: var(--red);
+  background: var(--red-soft);
 }
 
 .status-dot {
@@ -2593,6 +2623,99 @@ p {
   margin-bottom: 11px;
 }
 
+.job-queue-section {
+  margin-bottom: 27px;
+}
+
+.job-list {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.job-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  min-height: 66px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.job-row:last-child {
+  border-bottom: 0;
+}
+
+.job-state {
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+}
+
+.job-copy {
+  min-width: 0;
+}
+
+.job-copy > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.job-copy strong {
+  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-size: 10px;
+}
+
+.job-copy > span,
+.job-copy > small {
+  display: block;
+  margin-top: 5px;
+  overflow: hidden;
+  color: var(--subtle);
+  font-family: ui-monospace, "SFMono-Regular", monospace;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.job-copy > small {
+  color: var(--red);
+}
+
+.job-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.job-actions .button {
+  min-height: 31px;
+  padding: 0 10px;
+  font-size: 9px;
+}
+
+.job-empty {
+  display: flex;
+  min-height: 110px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  color: var(--subtle);
+  background: var(--surface);
+  font-size: 10px;
+}
+
+.job-empty strong {
+  color: var(--ink);
+}
+
 .workflow-list {
   overflow: hidden;
   border: 1px solid var(--line);
@@ -2746,6 +2869,12 @@ p {
   font-size: 12px;
 }
 
+.vault-path-card strong .tag {
+  margin-left: 6px;
+  font-family: Inter, sans-serif;
+  vertical-align: middle;
+}
+
 .vault-path-card code {
   margin-top: 4px;
   overflow: hidden;
@@ -2754,6 +2883,13 @@ p {
   font-size: 8px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.vault-path-card small {
+  display: block;
+  margin-top: 5px;
+  color: var(--red);
+  font-size: 8px;
 }
 
 .setting-actions {

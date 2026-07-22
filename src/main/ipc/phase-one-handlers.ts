@@ -1,11 +1,9 @@
 import type { IpcMain } from 'electron'
 import { ZodError } from 'zod'
-import { JobListFilterSchema } from '../../shared/domain/job.js'
+import { EnqueueJobInputSchema, JobListFilterSchema } from '../../shared/domain/job.js'
+import { PHASE_ONE_IPC_CHANNELS, type IpcError, type IpcResult } from '../../shared/ipc/phase-one-contract.js'
 import {
   JobIdRequestSchema,
-  PHASE_ONE_IPC_CHANNELS,
-  type IpcError,
-  type IpcResult,
 } from '../../shared/ipc/phase-one.js'
 import { VaultError } from '../vault/vault-errors.js'
 import type { JobQueueService } from '../application/job-queue-service.js'
@@ -30,6 +28,9 @@ export function registerPhaseOneIpcHandlers(dependencies: PhaseOneHandlerDepende
   )
   ipcMain.handle(PHASE_ONE_IPC_CHANNELS.vaultRebuildIndex, () =>
     asIpcResult(() => vaultService.rebuildActiveSearchIndex()),
+  )
+  ipcMain.handle(PHASE_ONE_IPC_CHANNELS.jobsCreate, (_event, rawInput: unknown) =>
+    asIpcResult(() => jobQueueService.enqueue(EnqueueJobInputSchema.parse(rawInput))),
   )
   ipcMain.handle(PHASE_ONE_IPC_CHANNELS.jobsList, (_event, rawFilter: unknown) =>
     asIpcResult(() => jobQueueService.list(JobListFilterSchema.parse(rawFilter ?? {}))),

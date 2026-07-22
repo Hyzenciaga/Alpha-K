@@ -81,4 +81,3 @@ export type JobPriority = z.infer<typeof JobPrioritySchema>
 export type Job = z.infer<typeof JobSchema>
 export type EnqueueJobInput = z.input<typeof EnqueueJobInputSchema>
 export type JobListFilter = z.input<typeof JobListFilterSchema>
-

@@ -40,6 +40,8 @@ import {
   X,
 } from 'lucide-react'
 import type { PhaseZeroStatus, ProviderProbeStatus } from '../../shared/contracts'
+import type { EnqueueJobInput, Job, JobStatus } from '../../shared/domain/job'
+import type { VaultConnection } from '../../shared/domain/vault'
 import {
   activity,
   inboxItems as initialInboxItems,
@@ -66,8 +68,23 @@ import {
 
 type Navigate = (page: PageId) => void
 type Notify = (message: string) => void
+type CreateJob = (input: EnqueueJobInput) => Promise<void>
+type JobAction = (jobId: string) => Promise<void>
 
-export function TodayPage({ onNavigate, notify }: { onNavigate: Navigate; notify: Notify }): React.JSX.Element {
+export function TodayPage({
+  onNavigate,
+  jobs,
+  onCreateJob,
+}: {
+  onNavigate: Navigate
+  jobs: Job[]
+  onCreateJob: CreateJob
+  notify: Notify
+}): React.JSX.Element {
+  const runningJobs = jobs.filter((job) => job.status === 'running').length
+  const pendingJobs = jobs.filter((job) => job.status === 'queued' || job.status === 'scheduled').length
+  const attentionJobs = jobs.filter((job) => job.status === 'failed' || job.status === 'interrupted').length
+
   return (
     <div className="page page-today">
       <PageHeader
@@ -76,7 +93,11 @@ export function TodayPage({ onNavigate, notify }: { onNavigate: Navigate; notify
         description="昨晚到现在，5 个来源带来了 18 条新内容。Agent 已经帮你挑出 4 条值得优先确认。"
         actions={
           <>
-            <Button variant="secondary" icon={<RefreshCw size={16} />} onClick={() => notify('已创建全量同步任务')}>
+            <Button
+              variant="secondary"
+              icon={<RefreshCw size={16} />}
+              onClick={() => void onCreateJob({ type: 'source.sync', priority: 'normal', payload: { scope: 'all' } })}
+            >
               同步全部
             </Button>
             <Button icon={<Sparkles size={16} />} onClick={() => onNavigate('query')}>
@@ -86,11 +107,18 @@ export function TodayPage({ onNavigate, notify }: { onNavigate: Navigate; notify
         }
       />
 
+      <PhaseScopeNotice>Phase 1 已接通 Vault、Job 与 Provider；以下知识内容和统计仍为 Mock。</PhaseScopeNotice>
+
       <section className="metric-grid" aria-label="今日概览">
         <MetricCard label="今日新增" value="18" change="来自 5 个来源" icon={<FileInput size={18} />} />
         <MetricCard label="待确认" value="7" change="其中 4 条高价值" icon={<Inbox size={18} />} accent />
         <MetricCard label="本周已收录" value="46" change="比上周多 12%" icon={<Archive size={18} />} />
-        <MetricCard label="后台任务" value="2" change="1 运行中 · 1 等待" icon={<Activity size={18} />} />
+        <MetricCard
+          label="后台任务"
+          value={String(jobs.length)}
+          change={`${runningJobs} 运行中 · ${pendingJobs} 等待${attentionJobs ? ` · ${attentionJobs} 需处理` : ''}`}
+          icon={<Activity size={18} />}
+        />
       </section>
 
       <div className="dashboard-grid">
@@ -246,11 +274,12 @@ export function InboxPage({ notify }: { notify: Notify }): React.JSX.Element {
   return (
     <div className="page page-inbox">
       <PageHeader
-        eyebrow="REVIEW QUEUE"
+        eyebrow="REVIEW QUEUE · MOCK"
         title="收件箱"
         description="Agent 已经完成初步整理。你只需要确认真正值得进入长期知识库的内容。"
         actions={<Button variant="secondary" icon={<CheckCircle2 size={16} />} onClick={() => notify('已批量收录 4 条高置信度内容')}>批量处理</Button>}
       />
+      <MockNotice scope="收件箱" />
       <div className="toolbar toolbar-split">
         <SegmentedControl
           label="收件箱筛选"
@@ -354,11 +383,12 @@ export function LibraryPage({ notify }: { notify: Notify }): React.JSX.Element {
   return (
     <div className="page page-library">
       <PageHeader
-        eyebrow="KNOWLEDGE VAULT"
+        eyebrow="KNOWLEDGE VAULT · MOCK"
         title="知识库"
         description="已确认的内容、笔记与报告都保存在你的本地 Vault 中。"
         actions={<Button icon={<Plus size={16} />} onClick={() => notify('已打开导入文件选择器（Mock）')}>导入文件</Button>}
       />
+      <MockNotice scope="知识库内容" />
       <div className="library-layout">
         <aside className="filter-rail">
           <div className="filter-section">
@@ -440,11 +470,12 @@ export function SourcesPage({ notify }: { notify: Notify }): React.JSX.Element {
   return (
     <div className="page page-sources">
       <PageHeader
-        eyebrow="INGESTION"
+        eyebrow="INGESTION · MOCK"
         title="订阅源"
         description="管理外部信息从哪里来、多久同步一次，以及进入收件箱前应用哪些默认规则。"
         actions={<Button icon={<Plus size={16} />} onClick={() => notify('已打开新建来源面板（Mock）')}>新建来源</Button>}
       />
+      <MockNotice scope="订阅源" />
       <section className="source-overview">
         <div><span className="overview-icon"><Rss size={19} /></span><div><strong>5</strong><span>全部来源</span></div></div>
         <div><span className="overview-icon"><CheckCircle2 size={19} /></span><div><strong>4</strong><span>运行正常</span></div></div>
@@ -510,10 +541,11 @@ export function QueryPage({ notify }: { notify: Notify }): React.JSX.Element {
   return (
     <div className="page page-query">
       <PageHeader
-        eyebrow="ASK YOUR VAULT"
+        eyebrow="ASK YOUR VAULT · MOCK"
         title="问答"
         description="应用先从本地知识库确定范围，再让 Agent 基于可验证的资料回答。"
       />
+      <MockNotice scope="问答" />
       <div className="query-layout">
         <aside className="conversation-rail">
           <Button icon={<Plus size={16} />} onClick={() => { setQuestion(''); setAnswer(false) }}>新建问题</Button>
@@ -606,11 +638,12 @@ export function ReportsPage({ notify }: { notify: Notify }): React.JSX.Element {
   return (
     <div className="page page-reports">
       <PageHeader
-        eyebrow="SYNTHESIS"
+        eyebrow="SYNTHESIS · MOCK"
         title="报告"
         description="把一周的阅读与收藏沉淀成可脱离应用阅读、带有本地引用的 Markdown 产物。"
         actions={<Button icon={<Sparkles size={16} />} onClick={() => notify('已创建本周报告生成任务')}>生成本周报告</Button>}
       />
+      <MockNotice scope="报告" />
       <div className="reports-layout">
         <aside className="report-list">
           <div className="report-list-heading"><span>周报</span><IconButton label="报告筛选"><Filter size={16} /></IconButton></div>
@@ -661,13 +694,21 @@ const providerLabels: Record<ProviderProbeStatus, string> = {
 
 export function AgentsPage({
   status,
+  jobs,
   refreshing,
   onRefresh,
+  onCreateJob,
+  onCancelJob,
+  onRetryJob,
   notify,
 }: {
   status: PhaseZeroStatus | null
+  jobs: Job[]
   refreshing: boolean
   onRefresh: () => void
+  onCreateJob: CreateJob
+  onCancelJob: JobAction
+  onRetryJob: JobAction
   notify: Notify
 }): React.JSX.Element {
   const [workflows, setWorkflows] = useState([
@@ -677,6 +718,8 @@ export function AgentsPage({
   ])
   const codex = status?.providers.find((provider) => provider.provider === 'codex')
   const qoder = status?.providers.find((provider) => provider.provider === 'qoder')
+  const runningJobs = jobs.filter((job) => job.status === 'running').length
+  const pendingJobs = jobs.filter((job) => job.status === 'queued' || job.status === 'scheduled').length
 
   return (
     <div className="page page-agents">
@@ -687,20 +730,39 @@ export function AgentsPage({
         actions={<Button variant="secondary" icon={<RefreshCw size={16} className={refreshing ? 'spin' : undefined} />} onClick={onRefresh} disabled={refreshing}>重新检测</Button>}
       />
       <section className="provider-grid">
-        <ProviderCard name="Codex" icon={<Code2 size={21} />} probe={codex} color="codex" notify={notify} />
-        <ProviderCard name="Qoder" icon={<Bot size={21} />} probe={qoder} color="qoder" notify={notify} />
+        <ProviderCard
+          name="Codex"
+          icon={<Code2 size={21} />}
+          probe={codex}
+          color="codex"
+          onTest={() => void onCreateJob({ type: 'external.analyze', priority: 'interactive', payload: { provider: 'codex', purpose: 'probe-smoke' } })}
+        />
+        <ProviderCard
+          name="Qoder"
+          icon={<Bot size={21} />}
+          probe={qoder}
+          color="qoder"
+          onTest={() => void onCreateJob({ type: 'external.analyze', priority: 'interactive', payload: { provider: 'qoder', purpose: 'probe-smoke' } })}
+        />
       </section>
 
       <section className="runtime-strip">
-        <div><span className="runtime-icon"><Gauge size={18} /></span><div><strong>任务队列</strong><span>1 运行中 · 2 等待</span></div></div>
+        <div><span className="runtime-icon"><Gauge size={18} /></span><div><strong>任务队列</strong><span>{runningJobs} 运行中 · {pendingJobs} 等待</span></div></div>
         <div><span className="runtime-icon"><ShieldCheck size={18} /></span><div><strong>权限策略</strong><span>Staging only · dontAsk</span></div></div>
         <div><span className="runtime-icon"><Activity size={18} /></span><div><strong>后台计数</strong><span>{status?.backgroundTicks ?? '—'} · Main 保持运行</span></div></div>
-        <button type="button" onClick={() => notify('已打开运行历史（Mock）')}>查看运行历史 <ArrowRight size={14} /></button>
+        <button type="button" onClick={() => document.getElementById('job-queue')?.scrollIntoView({ behavior: 'smooth' })}>查看任务队列 <ArrowRight size={14} /></button>
       </section>
+
+      <JobQueuePanel
+        jobs={jobs}
+        onCreateJob={onCreateJob}
+        onCancelJob={onCancelJob}
+        onRetryJob={onRetryJob}
+      />
 
       <section className="workflow-section">
         <div className="panel-heading">
-          <div><p className="panel-kicker">WORKFLOWS</p><h2>自动化</h2></div>
+          <div><p className="panel-kicker">WORKFLOWS · MOCK</p><h2>自动化</h2></div>
           <Button variant="secondary" icon={<Plus size={15} />} onClick={() => notify('自定义 Workflow 将在后续版本开放')}>新建 Workflow</Button>
         </div>
         <div className="workflow-list">
@@ -721,18 +783,97 @@ export function AgentsPage({
   )
 }
 
+const jobStatusLabels: Record<JobStatus, string> = {
+  scheduled: '已计划',
+  queued: '等待中',
+  running: '运行中',
+  succeeded: '已完成',
+  failed: '失败',
+  interrupted: '已中断',
+  cancelled: '已取消',
+}
+
+function JobQueuePanel({
+  jobs,
+  onCreateJob,
+  onCancelJob,
+  onRetryJob,
+}: {
+  jobs: Job[]
+  onCreateJob: CreateJob
+  onCancelJob: JobAction
+  onRetryJob: JobAction
+}): React.JSX.Element {
+  return (
+    <section className="workflow-section job-queue-section" id="job-queue">
+      <div className="panel-heading">
+        <div><p className="panel-kicker">DURABLE JOBS · LIVE</p><h2>任务队列</h2></div>
+        <Button
+          variant="secondary"
+          icon={<Plus size={15} />}
+          onClick={() => void onCreateJob({ type: 'external.scan', priority: 'normal', payload: { source: 'manual' } })}
+        >
+          创建测试 Job
+        </Button>
+      </div>
+      {jobs.length === 0 ? (
+        <div className="job-empty"><Activity size={22} /><strong>暂无 Job</strong><span>创建一个测试 Job 来验证持久化队列。</span></div>
+      ) : (
+        <div className="job-list">
+          {jobs.slice(0, 20).map((job) => {
+            const recovered = job.status === 'queued' && job.attempt > 0 && Boolean(job.lastError)
+            const cancellable = ['scheduled', 'queued', 'interrupted'].includes(job.status)
+            const retryable = ['failed', 'interrupted'].includes(job.status) && job.attempt < job.maxAttempts
+            const tone = job.status === 'failed'
+              ? 'danger'
+              : job.status === 'succeeded'
+                ? 'success'
+                : job.status === 'running' || job.status === 'interrupted'
+                  ? 'warning'
+                  : 'neutral'
+            return (
+              <article className="job-row" key={job.id}>
+                <span className={`job-state job-state-${job.status}`}><StatusDot status={job.status === 'failed' ? 'danger' : job.status === 'succeeded' ? 'success' : job.status === 'cancelled' ? 'muted' : 'warning'} /></span>
+                <div className="job-copy">
+                  <div><strong>{job.type}</strong><Tag tone={tone}>{jobStatusLabels[job.status]}</Tag>{recovered && <Tag tone="warning">interrupted 后已恢复</Tag>}</div>
+                  <span>{job.id} · 第 {job.attempt}/{job.maxAttempts} 次 · {formatJobTime(job.updatedAt)}</span>
+                  {job.lastError && <small>{job.lastError}</small>}
+                </div>
+                <div className="job-actions">
+                  {retryable && <Button variant="secondary" onClick={() => void onRetryJob(job.id)}>重试</Button>}
+                  {cancellable && <Button variant="ghost" onClick={() => void onCancelJob(job.id)}>取消</Button>}
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function formatJobTime(value: string): string {
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(new Date(value))
+}
+
 function ProviderCard({
   name,
   icon,
   probe,
   color,
-  notify,
+  onTest,
 }: {
   name: string
   icon: React.ReactNode
   probe: PhaseZeroStatus['providers'][number] | undefined
   color: string
-  notify: Notify
+  onTest: () => void
 }): React.JSX.Element {
   const available = probe?.status === 'available'
   return (
@@ -744,16 +885,38 @@ function ProviderCard({
         <div><span>认证</span><strong>{available ? '本机登录' : '需处理'}</strong></div>
       </div>
       <p>{probe?.detail ?? '正在执行本机 capability probe…'}</p>
-      <footer><code>{probe?.selectedExecutable ?? 'Waiting for executable…'}</code><button type="button" onClick={() => notify(`${name} 测试任务已创建`)}>测试运行</button></footer>
+      <footer><code>{probe?.selectedExecutable ?? 'Waiting for executable…'}</code><button type="button" onClick={onTest}>创建测试 Job</button></footer>
     </article>
   )
 }
 
-export function SettingsPage({ notify }: { notify: Notify }): React.JSX.Element {
+export function SettingsPage({
+  vaultConnection,
+  vaultBusy,
+  onSelectVault,
+  onRebuildVaultIndex,
+  notify,
+}: {
+  vaultConnection: VaultConnection | null
+  vaultBusy: boolean
+  onSelectVault: () => Promise<void>
+  onRebuildVaultIndex: () => Promise<void>
+  notify: Notify
+}): React.JSX.Element {
   const [launchAtLogin, setLaunchAtLogin] = useState(false)
   const [notifications, setNotifications] = useState(true)
   const [hideOnClose, setHideOnClose] = useState(true)
   const [networkTools, setNetworkTools] = useState(false)
+  const vaultReady = vaultConnection?.state === 'ready'
+  const vaultStateLabel = vaultConnection === null
+    ? '读取中'
+    : vaultConnection.state === 'ready'
+      ? '已就绪'
+      : vaultConnection.state === 'unconfigured'
+        ? '未配置'
+        : vaultConnection.state === 'missing'
+          ? '目录缺失'
+          : '配置无效'
   return (
     <div className="page page-settings">
       <PageHeader eyebrow="PREFERENCES" title="设置" description="管理 Vault、应用生命周期、通知以及本机 Agent 的默认行为。" />
@@ -767,8 +930,21 @@ export function SettingsPage({ notify }: { notify: Notify }): React.JSX.Element 
         </nav>
         <div className="settings-content">
           <SettingsSection title="Knowledge Vault" description="所有正式知识资产都保存在这个普通文件目录中。">
-            <div className="vault-path-card"><span><Folder size={20} /></span><div><strong>Alpha-K Vault</strong><code>/Users/steve/Documents/Alpha-K-Vault</code></div><Button variant="secondary" onClick={() => notify('已打开 Vault 选择器（Mock）')}>更改位置</Button></div>
-            <div className="setting-actions"><button type="button" onClick={() => notify('已在 Finder 中打开 Vault')}><FolderOpen size={16} />在 Finder 中打开</button><button type="button" onClick={() => notify('已创建重建索引任务')}><RefreshCw size={16} />重建索引</button></div>
+            <div className="vault-path-card">
+              <span><Folder size={20} /></span>
+              <div>
+                <strong>Alpha-K Vault <Tag tone={vaultReady ? 'success' : 'warning'}>{vaultStateLabel}</Tag></strong>
+                <code>{vaultConnection?.vault?.path ?? '尚未选择本地 Vault 目录'}</code>
+                {vaultConnection?.error && <small>{vaultConnection.error}</small>}
+              </div>
+              <Button variant="secondary" disabled={vaultBusy} onClick={() => void onSelectVault()}>
+                {vaultReady ? '更改或恢复' : '选择并初始化'}
+              </Button>
+            </div>
+            <div className="setting-actions">
+              <button type="button" onClick={() => notify('在 Finder 中打开尚未接入（Mock）')}><FolderOpen size={16} />在 Finder 中打开（Mock）</button>
+              <button type="button" disabled={!vaultReady || vaultBusy} onClick={() => void onRebuildVaultIndex()}><RefreshCw size={16} />重建索引</button>
+            </div>
           </SettingsSection>
           <SettingsSection title="应用行为" description="控制 Alpha-K 在 macOS 上如何启动与退出。">
             <SettingRow title="点击红叉时隐藏窗口" description="Main 进程、同步和 Agent 任务继续运行。"><Toggle checked={hideOnClose} onChange={setHideOnClose} label="点击红叉时隐藏窗口" /></SettingRow>
@@ -785,6 +961,14 @@ export function SettingsPage({ notify }: { notify: Notify }): React.JSX.Element 
       </div>
     </div>
   )
+}
+
+function PhaseScopeNotice({ children }: { children: React.ReactNode }): React.JSX.Element {
+  return <div className="phase-scope-notice"><ShieldCheck size={16} /><span>{children}</span></div>
+}
+
+function MockNotice({ scope }: { scope: string }): React.JSX.Element {
+  return <PhaseScopeNotice><strong>Mock：</strong>{scope}在本次联调中仅保留交互预览，不会读写正式后端数据。</PhaseScopeNotice>
 }
 
 function SettingsSection({ title, description, children }: { title: string; description: string; children: React.ReactNode }): React.JSX.Element {
