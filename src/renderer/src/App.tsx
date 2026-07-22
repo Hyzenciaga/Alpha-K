@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import {
   Bell,
   Bot,
-  ChevronLeft,
   FileText,
   Home,
   Inbox,
@@ -233,12 +232,6 @@ export function App(): React.JSX.Element {
             <span className="brand-mark">K</span>
             <span className="brand-copy"><strong>Alpha-K</strong><small>Local knowledge</small></span>
           </button>
-          <IconButton
-            label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
-            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-          >
-            {sidebarCollapsed ? <PanelLeft size={17} /> : <ChevronLeft size={17} />}
-          </IconButton>
         </div>
 
         <nav className="sidebar-nav" aria-label="主要导航">
@@ -265,6 +258,14 @@ export function App(): React.JSX.Element {
 
       <main className="app-main">
         <header className="topbar">
+          <div className="window-toolbar-leading">
+            <IconButton
+              label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
+              onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            >
+              <PanelLeft size={18} />
+            </IconButton>
+          </div>
           <form className="global-search" onSubmit={submitGlobalSearch}>
             <SearchField value={search} onChange={setSearch} placeholder="搜索知识、标签或来源…" />
           </form>

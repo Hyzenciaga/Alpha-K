@@ -1,49 +1,41 @@
-# Design QA — macOS window chrome and sidebar toggle
+# Design QA — independent window toolbar and collapsible sidebar
 
 ## Evidence
 
-- Source visual truth: `/var/folders/dd/wp7fh49j6s7gjk1wg8hm0rsr0000gn/T/codex-clipboard-230232ff-d5c3-4836-a452-16789be2cdfa.png`
-- Before-state reference: `/var/folders/dd/wp7fh49j6s7gjk1wg8hm0rsr0000gn/T/codex-clipboard-67085eee-103c-4926-a9c1-2feed44f3cf4.png`
-- Expanded implementation: `/private/tmp/alpha-k-window-chrome-expanded.jpeg`
-- Collapsed implementation: `/var/folders/dd/wp7fh49j6s7gjk1wg8hm0rsr0000gn/T/com.openai.sky.CUAService/Alpha-K Screenshot 2026-07-22 at 22.50.22.jpeg`
-- Focused comparison: `/private/tmp/alpha-k-window-chrome-comparison.png`
+- Source visual truth (Codex toolbar): `/var/folders/dd/wp7fh49j6s7gjk1wg8hm0rsr0000gn/T/codex-clipboard-5ec1f436-c50d-4340-8536-ce12c16b200e.png`
+- Problem-state reference: `/var/folders/dd/wp7fh49j6s7gjk1wg8hm0rsr0000gn/T/codex-clipboard-640570b9-ea79-4e30-8cb2-e822f0329c65.png`
+- Expanded implementation: `/private/tmp/alpha-k-toolbar-expanded.jpeg`
+- Collapsed implementation: `/private/tmp/alpha-k-toolbar-collapsed.jpeg`
+- Source/expanded/collapsed comparison: `/private/tmp/alpha-k-toolbar-comparison.png`
 - App viewport: 1120 × 760 CSS px on macOS.
-- Source pixels: 1208 × 100, inferred @2x crop and normalized to 604 × 50 CSS px.
-- Implementation pixels: 1120 × 760 at 1x capture; the focused comparison uses its top 1120 × 102 px.
-- State: packaged Electron app, expanded and collapsed sidebar states.
+- State: packaged Electron app, verified in both expanded and collapsed sidebar states.
 
-## Full-view comparison evidence
+## Layout verdict
 
-The implementation removes the separate white native title strip and its `Alpha-K` title. Native macOS traffic lights remain functional and sit over the app-owned sidebar surface. The existing application typography, colors, content, and component hierarchy are intentionally unchanged.
+The macOS window controls and sidebar toggle now belong to one independent, full-width 58 px toolbar. The navigation sidebar starts on the second grid row below that toolbar. Collapsing the sidebar only changes the second-row navigation width; it does not move, stack, or resize the toolbar controls.
 
-## Focused region comparison evidence
-
-The focused comparison normalizes the supplied @2x title-bar crop before stacking it above the implementation. Traffic-light size and spacing remain system-native; their background now follows Alpha-K's dark sidebar rather than creating a separate white application-name bar.
+The screen-control harness places a purple control indicator over the traffic-light area in the saved screenshots. The Electron accessibility tree independently exposes the native close, minimize, and fullscreen controls; the packaged app uses Electron's native `hiddenInset` title bar and configured traffic-light position.
 
 ## Findings
 
-- No actionable P0/P1/P2 mismatch remains.
-- Fonts and typography: unchanged inside the app; the unwanted native title text is absent.
-- Spacing and layout rhythm: a 28 px draggable inset prevents traffic lights from overlapping the sidebar brand and topbar controls.
-- Colors and visual tokens: window chrome inherits the existing sidebar/topbar tokens instead of adding a new title-bar color.
-- Image quality and asset fidelity: no raster or generated assets were needed; Electron supplies native macOS controls and Lucide supplies the existing sidebar icon.
-- Copy and content: application content is unchanged; `Alpha-K` remains only as the intentional in-app brand.
+- Initial P1: the traffic lights, branding, and collapse button were vertically coupled inside the sidebar, producing an awkward control stack when collapsed.
+- Fix: move the collapse button into a dedicated toolbar-leading group beside the reserved native-control area; place the sidebar and page content on the row below.
+- No actionable P0/P1/P2 mismatch remains in the corrected expanded and collapsed captures.
+- Typography, content cards, colors, and navigation visuals remain unchanged outside the requested window-chrome area.
+- No new raster assets were needed; the toggle continues to use the existing Lucide `PanelLeft` icon.
 
 ## Interaction verification
 
-- Native close/minimize/zoom controls are visible in the packaged app.
-- The custom title region drags the native window.
-- `收起侧边栏` changes to a visible, keyboard-accessible `展开侧边栏` button.
-- Clicking `展开侧边栏` restores the full navigation and brand.
+- In expanded state, the fixed top-row button is announced as `收起侧边栏`.
+- After activation, the same top-row button stays in place and is announced as `展开侧边栏`.
+- The collapsed sidebar retains its brand mark and navigation icons below the toolbar.
+- Activating `展开侧边栏` restores the complete navigation without changing the toolbar layout.
+- The toolbar remains the draggable native window region, while buttons and the search input remain interactive no-drag regions.
 
 ## Comparison history
 
-- Initial issue: native title bar created a separate white strip and displayed the application name; the collapsed CSS selector also hid the only sidebar toggle.
-- Fix: use Electron `hiddenInset`, reserve a draggable inset in renderer chrome, and keep the toggle visible while hiding the brand in collapsed state.
-- Post-fix evidence: expanded and collapsed packaged-app captures above; no further P0/P1/P2 correction was required.
-
-## Follow-up polish
-
-- P3: traffic-light colors appear muted when the window is inactive, which is native macOS behavior and should not be overridden.
+1. Reference: Codex keeps traffic lights and the sidebar toggle horizontally in a separate first row.
+2. Rejected implementation: Alpha-K placed those controls inside the sidebar and stacked them when collapsed.
+3. Corrected implementation: a stable first-row toolbar spans the entire window; only the second-row sidebar collapses.
 
 final result: passed
