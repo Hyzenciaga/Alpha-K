@@ -6,7 +6,6 @@ import {
   Atom,
   Bot,
   Check,
-  CheckCircle2,
   ChevronRight,
   Clock3,
   Code2,
@@ -34,24 +33,18 @@ import {
   Settings2,
   ShieldCheck,
   Sparkles,
-  Star,
-  Trash2,
   WandSparkles,
-  X,
 } from 'lucide-react'
 import type { PhaseZeroStatus, ProviderProbeStatus } from '../../shared/contracts'
 import type { EnqueueJobInput, Job, JobStatus } from '../../shared/domain/job'
 import type { VaultConnection } from '../../shared/domain/vault'
 import {
   activity,
-  inboxItems as initialInboxItems,
   libraryItems,
   reports,
-  sourceItems as initialSourceItems,
   weeklyBars,
   type KnowledgeItem,
   type PageId,
-  type SourceItem,
 } from './mock-data'
 import {
   Button,
@@ -133,7 +126,7 @@ export function TodayPage({
             </button>
           </div>
           <div className="focus-list">
-            {initialInboxItems.slice(0, 3).map((item, index) => (
+            {libraryItems.slice(0, 3).map((item, index) => (
               <article className="focus-item" key={item.id}>
                 <span className="focus-rank">0{index + 1}</span>
                 <div className="focus-copy">
@@ -251,120 +244,6 @@ function MetricCard({
   )
 }
 
-export function InboxPage({ notify }: { notify: Notify }): React.JSX.Element {
-  const [items, setItems] = useState(initialInboxItems)
-  const [activeId, setActiveId] = useState(initialInboxItems[0]?.id)
-  const [filter, setFilter] = useState<'all' | 'important' | 'later'>('all')
-  const [search, setSearch] = useState('')
-  const activeItem = items.find((item) => item.id === activeId) ?? items[0]
-  const visibleItems = items.filter((item) => {
-    const matchesSearch = `${item.title} ${item.summary} ${item.labels.join(' ')}`.toLowerCase().includes(search.toLowerCase())
-    const matchesFilter = filter === 'all' || (filter === 'important' ? item.importance >= 4 : item.state === '稍后阅读')
-    return matchesSearch && matchesFilter
-  })
-
-  function resolveItem(message: string): void {
-    if (!activeItem) return
-    const nextItems = items.filter((item) => item.id !== activeItem.id)
-    setItems(nextItems)
-    setActiveId(nextItems[0]?.id)
-    notify(message)
-  }
-
-  return (
-    <div className="page page-inbox">
-      <PageHeader
-        eyebrow="REVIEW QUEUE · MOCK"
-        title="收件箱"
-        description="Agent 已经完成初步整理。你只需要确认真正值得进入长期知识库的内容。"
-        actions={<Button variant="secondary" icon={<CheckCircle2 size={16} />} onClick={() => notify('已批量收录 4 条高置信度内容')}>批量处理</Button>}
-      />
-      <MockNotice scope="收件箱" />
-      <div className="toolbar toolbar-split">
-        <SegmentedControl
-          label="收件箱筛选"
-          value={filter}
-          onChange={setFilter}
-          options={[
-            { value: 'all', label: `全部 ${items.length}` },
-            { value: 'important', label: '高价值' },
-            { value: 'later', label: '稍后阅读' },
-          ]}
-        />
-        <div className="toolbar-actions">
-          <SearchField value={search} onChange={setSearch} placeholder="搜索收件箱" compact />
-          <IconButton label="筛选"><Filter size={17} /></IconButton>
-        </div>
-      </div>
-
-      <div className="review-layout">
-        <section className="review-list" aria-label="待确认内容">
-          {visibleItems.length === 0 ? (
-            <div className="empty-state"><CheckCircle2 size={28} /><h3>这里已经处理完了</h3><p>换一个筛选条件，或等待下次同步。</p></div>
-          ) : visibleItems.map((item) => (
-            <button
-              className={`review-row${item.id === activeItem?.id ? ' is-active' : ''}`}
-              type="button"
-              key={item.id}
-              onClick={() => setActiveId(item.id)}
-            >
-              <div className="source-glyph">{sourceGlyph(item.sourceType)}</div>
-              <div className="review-row-copy">
-                <div className="item-meta"><span>{item.source}</span><span>{item.time}</span></div>
-                <h3>{item.title}</h3>
-                <p>{item.summary}</p>
-                <div className="row-footer">
-                  <div className="tag-row">{item.labels.slice(0, 2).map((label) => <Tag key={label}>{label}</Tag>)}</div>
-                  <span className="importance"><Star size={13} fill="currentColor" /> {item.importance}.0</span>
-                </div>
-              </div>
-            </button>
-          ))}
-        </section>
-
-        {activeItem && (
-          <aside className="review-detail">
-            <header className="detail-header">
-              <div className="item-meta"><span>{activeItem.source}</span><span>{activeItem.time}</span></div>
-              <div className="detail-tools">
-                <IconButton label="打开原文"><ExternalLink size={17} /></IconButton>
-                <IconButton label="更多操作"><MoreHorizontal size={17} /></IconButton>
-              </div>
-            </header>
-            <h2>{activeItem.title}</h2>
-            <p className="detail-byline">{activeItem.author} · 约 {activeItem.readingMinutes} 分钟阅读</p>
-            <div className="agent-summary">
-              <div className="summary-label"><Sparkles size={15} /><span>Agent 摘要</span><Tag tone="success">{Math.round(activeItem.confidence * 100)}% 置信度</Tag></div>
-              <p>{activeItem.summary}</p>
-            </div>
-            <section className="detail-section">
-              <div className="section-label"><span>建议标签</span><button type="button"><Plus size={14} /> 添加</button></div>
-              <div className="editable-tags">
-                {activeItem.labels.map((label) => <Tag key={label}>{label}<X size={12} /></Tag>)}
-              </div>
-            </section>
-            <section className="detail-section detail-grid">
-              <div><span>重要度</span><strong className="star-score"><Star size={15} fill="currentColor" /> {activeItem.importance} / 5</strong></div>
-              <div><span>分析 Provider</span><strong>Codex</strong></div>
-              <div><span>内容状态</span><strong>{activeItem.state}</strong></div>
-              <div><span>内容 ID</span><strong className="mono-value">{activeItem.id}</strong></div>
-            </section>
-            <div className="detail-note">
-              <label htmlFor="review-note">你的备注</label>
-              <textarea id="review-note" placeholder="补充为什么这条内容值得保留…" />
-            </div>
-            <footer className="review-actions">
-              <Button variant="ghost" icon={<Trash2 size={16} />} onClick={() => resolveItem('已忽略该内容')}>忽略</Button>
-              <Button variant="secondary" icon={<RefreshCw size={16} />} onClick={() => notify('已创建重新分析任务')}>重新分析</Button>
-              <Button icon={<Archive size={16} />} onClick={() => resolveItem('已收录到知识库')}>确认收录</Button>
-            </footer>
-          </aside>
-        )}
-      </div>
-    </div>
-  )
-}
-
 export function LibraryPage({ notify }: { notify: Notify }): React.JSX.Element {
   const [search, setSearch] = useState('')
   const [view, setView] = useState<'grid' | 'list'>('grid')
@@ -454,69 +333,6 @@ function LibraryCard({ item, view, notify }: { item: KnowledgeItem; view: 'grid'
       </footer>
       {view === 'list' && <span className="list-reading-time">{item.readingMinutes} min</span>}
     </article>
-  )
-}
-
-export function SourcesPage({ notify }: { notify: Notify }): React.JSX.Element {
-  const [sources, setSources] = useState<SourceItem[]>(initialSourceItems)
-  const [kind, setKind] = useState<'all' | 'RSS' | 'arXiv' | '目录'>('all')
-  const filtered = kind === 'all' ? sources : sources.filter((source) => source.kind === kind)
-
-  function toggleSource(id: string, enabled: boolean): void {
-    setSources((current) => current.map((source) => source.id === id ? { ...source, enabled } : source))
-    notify(enabled ? '来源已启用' : '来源已暂停')
-  }
-
-  return (
-    <div className="page page-sources">
-      <PageHeader
-        eyebrow="INGESTION · MOCK"
-        title="订阅源"
-        description="管理外部信息从哪里来、多久同步一次，以及进入收件箱前应用哪些默认规则。"
-        actions={<Button icon={<Plus size={16} />} onClick={() => notify('已打开新建来源面板（Mock）')}>新建来源</Button>}
-      />
-      <MockNotice scope="订阅源" />
-      <section className="source-overview">
-        <div><span className="overview-icon"><Rss size={19} /></span><div><strong>5</strong><span>全部来源</span></div></div>
-        <div><span className="overview-icon"><CheckCircle2 size={19} /></span><div><strong>4</strong><span>运行正常</span></div></div>
-        <div><span className="overview-icon"><FileInput size={19} /></span><div><strong>6</strong><span>今日新增</span></div></div>
-        <div><span className="overview-icon"><Clock3 size={19} /></span><div><strong>37m</strong><span>下次同步</span></div></div>
-      </section>
-      <div className="toolbar">
-        <SegmentedControl
-          label="来源类型"
-          value={kind}
-          onChange={setKind}
-          options={[
-            { value: 'all', label: '全部' },
-            { value: 'RSS', label: 'RSS' },
-            { value: 'arXiv', label: 'arXiv' },
-            { value: '目录', label: '目录' },
-          ]}
-        />
-        <Button variant="secondary" icon={<RefreshCw size={16} />} onClick={() => notify('已创建全部来源同步任务')}>立即同步全部</Button>
-      </div>
-      <section className="source-table-wrap">
-        <table className="source-table">
-          <thead><tr><th>来源</th><th>同步计划</th><th>最近同步</th><th>新增</th><th>状态</th><th><span className="sr-only">操作</span></th></tr></thead>
-          <tbody>
-            {filtered.map((source) => (
-              <tr key={source.id}>
-                <td>
-                  <div className={`source-type-icon type-${source.kind.toLowerCase()}`}>{sourceIcon(source.kind)}</div>
-                  <div className="source-cell-copy"><strong>{source.name}</strong><span>{source.description}</span><div className="tag-row">{source.labels.map((label) => <Tag key={label}>{label}</Tag>)}</div></div>
-                </td>
-                <td><strong>{source.schedule}</strong><span>下次：{source.nextSync}</span></td>
-                <td><span>{source.lastSync}</span></td>
-                <td><span className={source.newItems > 0 ? 'new-count' : undefined}>{source.newItems}</span></td>
-                <td><span className="health-label"><StatusDot status={!source.enabled ? 'muted' : source.health === 'healthy' ? 'success' : 'warning'} /> {!source.enabled ? '已暂停' : source.health === 'healthy' ? '正常' : '需关注'}</span></td>
-                <td><Toggle checked={source.enabled} onChange={(enabled) => toggleSource(source.id, enabled)} label={`${source.enabled ? '暂停' : '启用'} ${source.name}`} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-    </div>
   )
 }
 
@@ -983,10 +799,4 @@ function sourceGlyph(type: KnowledgeItem['sourceType']): React.JSX.Element {
   if (type === 'arxiv') return <Atom size={18} />
   if (type === 'rss') return <Rss size={17} />
   return <FileText size={17} />
-}
-
-function sourceIcon(kind: SourceItem['kind']): React.JSX.Element {
-  if (kind === 'arXiv') return <Atom size={18} />
-  if (kind === 'RSS') return <Rss size={17} />
-  return <Folder size={18} />
 }
