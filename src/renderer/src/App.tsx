@@ -226,6 +226,26 @@ export function App(): React.JSX.Element {
 
   return (
     <div className={`app-shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+      <header className="topbar">
+        <IconButton
+          label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
+          onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+        >
+          <PanelLeft size={18} />
+        </IconButton>
+        <form className="global-search" onSubmit={submitGlobalSearch}>
+          <SearchField value={search} onChange={setSearch} placeholder="搜索知识、标签或来源…" />
+        </form>
+        <div className="topbar-status" aria-label="应用状态">
+          <span><i />本地运行中</span>
+          <small>{phaseOneLoading ? 'Phase 1 正在连接' : `${jobs.length} Jobs · 后台 ${status?.backgroundTicks ?? '—'}`}</small>
+        </div>
+        <div className="topbar-actions">
+          <IconButton label="通知" onClick={() => notify('没有需要处理的新通知')}><Bell size={18} /></IconButton>
+          <Button icon={<Plus size={16} />} onClick={() => setCaptureOpen(true)}>快速收集</Button>
+        </div>
+      </header>
+
       <aside className="sidebar">
         <div className="sidebar-brand">
           <button type="button" onClick={() => navigate('today')} aria-label="前往今天">
@@ -257,28 +277,6 @@ export function App(): React.JSX.Element {
       </aside>
 
       <main className="app-main">
-        <header className="topbar">
-          <div className="window-toolbar-leading">
-            <IconButton
-              label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
-              onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-            >
-              <PanelLeft size={18} />
-            </IconButton>
-          </div>
-          <form className="global-search" onSubmit={submitGlobalSearch}>
-            <SearchField value={search} onChange={setSearch} placeholder="搜索知识、标签或来源…" />
-          </form>
-          <div className="topbar-status" aria-label="应用状态">
-            <span><i />本地运行中</span>
-            <small>{phaseOneLoading ? 'Phase 1 正在连接' : `${jobs.length} Jobs · 后台 ${status?.backgroundTicks ?? '—'}`}</small>
-          </div>
-          <div className="topbar-actions">
-            <IconButton label="通知" onClick={() => notify('没有需要处理的新通知')}><Bell size={18} /></IconButton>
-            <Button icon={<Plus size={16} />} onClick={() => setCaptureOpen(true)}>快速收集</Button>
-          </div>
-        </header>
-
         <div className="page-scroll">
           {activePage === 'today' && <TodayPage onNavigate={navigate} jobs={jobs} onCreateJob={createJob} notify={notify} />}
           {activePage === 'inbox' && <InboxPage client={phaseTwoClient} vaultId={vaultConnection?.vault?.id ?? null} />}

@@ -1,41 +1,44 @@
-# Design QA — independent window toolbar and collapsible sidebar
+# Design QA — rewritten macOS window toolbar
 
 ## Evidence
 
-- Source visual truth (Codex toolbar): `/var/folders/dd/wp7fh49j6s7gjk1wg8hm0rsr0000gn/T/codex-clipboard-5ec1f436-c50d-4340-8536-ce12c16b200e.png`
-- Problem-state reference: `/var/folders/dd/wp7fh49j6s7gjk1wg8hm0rsr0000gn/T/codex-clipboard-640570b9-ea79-4e30-8cb2-e822f0329c65.png`
-- Expanded implementation: `/private/tmp/alpha-k-toolbar-expanded.jpeg`
-- Collapsed implementation: `/private/tmp/alpha-k-toolbar-collapsed.jpeg`
-- Source/expanded/collapsed comparison: `/private/tmp/alpha-k-toolbar-comparison.png`
-- App viewport: 1120 × 760 CSS px on macOS.
-- State: packaged Electron app, verified in both expanded and collapsed sidebar states.
-
-## Layout verdict
-
-The macOS window controls and sidebar toggle now belong to one independent, full-width 58 px toolbar. The navigation sidebar starts on the second grid row below that toolbar. Collapsing the sidebar only changes the second-row navigation width; it does not move, stack, or resize the toolbar controls.
-
-The screen-control harness places a purple control indicator over the traffic-light area in the saved screenshots. The Electron accessibility tree independently exposes the native close, minimize, and fullscreen controls; the packaged app uses Electron's native `hiddenInset` title bar and configured traffic-light position.
+- Structural target (Codex): `/var/folders/dd/wp7fh49j6s7gjk1wg8hm0rsr0000gn/T/codex-clipboard-5ec1f436-c50d-4340-8536-ce12c16b200e.png`
+- Reported regression: `/var/folders/dd/wp7fh49j6s7gjk1wg8hm0rsr0000gn/T/codex-clipboard-4f0bdca4-3427-4b9b-b294-3c1f6f7644f8.png`
+- Rewritten expanded state: `/private/tmp/alpha-k-toolbar-rewrite-expanded.jpeg`
+- Rewritten collapsed state: `/private/tmp/alpha-k-toolbar-rewrite-collapsed-stable.jpeg`
+- Regression/expanded/collapsed comparison: `/private/tmp/alpha-k-toolbar-rewrite-comparison.png`
+- Source pixels: Codex crop 554 × 166; regression crop 620 × 294. Both are Retina crops and are treated as structural references rather than full-viewport measurements.
+- Implementation pixels and CSS viewport: 1120 × 760 at 1× capture.
+- State: packaged Electron app on macOS, expanded and collapsed sidebar states.
 
 ## Findings
 
-- Initial P1: the traffic lights, branding, and collapse button were vertically coupled inside the sidebar, producing an awkward control stack when collapsed.
-- Fix: move the collapse button into a dedicated toolbar-leading group beside the reserved native-control area; place the sidebar and page content on the row below.
-- No actionable P0/P1/P2 mismatch remains in the corrected expanded and collapsed captures.
-- Typography, content cards, colors, and navigation visuals remain unchanged outside the requested window-chrome area.
-- No new raster assets were needed; the toggle continues to use the existing Lucide `PanelLeft` icon.
+No actionable P0/P1/P2 finding remains after the rewrite.
+
+- Fonts and typography: no type styles were changed; the window toolbar uses the existing UI type and the sidebar retains its existing brand type.
+- Spacing and layout rhythm: the first row is one uninterrupted 58 px toolbar. Native traffic lights, sidebar toggle, search, status, and actions now follow one horizontal flow. The sidebar begins on the second row, so its right edge terminates at the toolbar baseline instead of continuing into it.
+- Colors and visual tokens: the toolbar keeps the existing light canvas and bottom border; no artificial vertical divider or sidebar-colored title area remains.
+- Image quality and asset fidelity: no new raster assets are required. Electron renders the three native macOS controls, and the existing icon library renders the sidebar toggle.
+- Copy and content: unchanged.
 
 ## Interaction verification
 
-- In expanded state, the fixed top-row button is announced as `收起侧边栏`.
-- After activation, the same top-row button stays in place and is announced as `展开侧边栏`.
-- The collapsed sidebar retains its brand mark and navigation icons below the toolbar.
-- Activating `展开侧边栏` restores the complete navigation without changing the toolbar layout.
-- The toolbar remains the draggable native window region, while buttons and the search input remain interactive no-drag regions.
+- Expanded state exposes `收起侧边栏`; collapsed state exposes `展开侧边栏`.
+- Activating the toggle changes only the second-row sidebar width. The toolbar controls and search position do not move.
+- The collapsed sidebar keeps its brand mark and navigation icons, and the expanded state restores labels.
+- The accessibility tree exposes native close, minimize, and fullscreen controls in the packaged app.
+- The toolbar is the draggable window region; its buttons and search input remain no-drag interactive regions.
+
+The Computer Use harness displays a purple control badge over the traffic-light area immediately after an automated click. The clean expanded capture shows the actual native controls; accessibility-tree verification covers both interaction states.
 
 ## Comparison history
 
-1. Reference: Codex keeps traffic lights and the sidebar toggle horizontally in a separate first row.
-2. Rejected implementation: Alpha-K placed those controls inside the sidebar and stacked them when collapsed.
-3. Corrected implementation: a stable first-row toolbar spans the entire window; only the second-row sidebar collapses.
+1. P1 regression: the earlier implementation created a fixed 190 px `.window-toolbar-leading` box with a right border while the responsive sidebar measured 210 or 236 px. The two unrelated edges produced the visible offset highlighted by the user.
+2. Structural fix: the toolbar was moved out of `<main>` and made a direct grid-area sibling of the sidebar and content. The artificial leading box and its border were deleted. Toolbar controls now use normal horizontal flow after the native-control inset.
+3. Post-fix evidence: expanded and collapsed captures show one continuous first row with no vertical seam. The sidebar width changes entirely below that row.
+
+## Follow-up polish
+
+- None in the requested window-chrome scope.
 
 final result: passed
