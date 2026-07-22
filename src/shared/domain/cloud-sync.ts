@@ -59,6 +59,18 @@ export const UserKnowledgeStateSchema = z
   })
   .strict()
 
+export const KnowledgeRefUpsertSchema = RemoteKnowledgeRefSchema.omit({
+  id: true,
+  updatedAt: true,
+})
+
+export const UserKnowledgeStateUpsertSchema = UserKnowledgeStateSchema.omit({
+  knowledgeRefId: true,
+  updatedAt: true,
+})
+  .extend({ refKey: z.string().min(1).max(1_000) })
+  .strict()
+
 export const SyncEntityTypeSchema = z.enum(['knowledge_ref', 'user_knowledge_state'])
 export const SyncOperationSchema = z.enum(['upsert', 'delete'])
 
@@ -82,6 +94,8 @@ export type KnowledgeRefKind = z.infer<typeof KnowledgeRefKindSchema>
 export type KnowledgeDisposition = z.infer<typeof KnowledgeDispositionSchema>
 export type RemoteKnowledgeRef = z.infer<typeof RemoteKnowledgeRefSchema>
 export type UserKnowledgeState = z.infer<typeof UserKnowledgeStateSchema>
+export type KnowledgeRefUpsert = z.infer<typeof KnowledgeRefUpsertSchema>
+export type UserKnowledgeStateUpsert = z.infer<typeof UserKnowledgeStateUpsertSchema>
 export type SyncEntityType = z.infer<typeof SyncEntityTypeSchema>
 export type SyncOperation = z.infer<typeof SyncOperationSchema>
 export type SyncChange = z.infer<typeof SyncChangeSchema>

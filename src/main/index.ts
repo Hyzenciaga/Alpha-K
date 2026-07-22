@@ -1,4 +1,5 @@
 import { join, resolve } from 'node:path'
+import { hostname } from 'node:os'
 import { app, BrowserWindow, dialog, ipcMain, powerMonitor, shell } from 'electron'
 import type { PhaseZeroStatus, ProviderProbe } from '../shared/contracts.js'
 import { IPC_CHANNELS } from '../shared/contracts.js'
@@ -7,6 +8,7 @@ import { JobQueueService } from './application/job-queue-service.js'
 import { SourceIngestionService } from './application/source-ingestion-service.js'
 import { SourceService } from './application/source-service.js'
 import { SourceSyncWorker } from './application/source-sync-worker.js'
+import { CloudSyncWorker } from './application/cloud-sync-worker.js'
 import { VaultService } from './application/vault-service.js'
 import { registerPhaseOneIpcHandlers } from './ipc/phase-one-handlers.js'
 import { registerPhaseTwoIpcHandlers } from './ipc/phase-two-handlers.js'
@@ -15,6 +17,8 @@ import { openAlphaKDatabase, type AlphaKDatabase } from './persistence/database.
 import { ArtifactRepository } from './persistence/repositories/artifact-repository.js'
 import { JobRepository } from './persistence/repositories/job-repository.js'
 import { KnowledgeRepository } from './persistence/repositories/knowledge-repository.js'
+import { KnowledgeStateRepository } from './persistence/repositories/knowledge-state-repository.js'
+import { CloudSyncRepository } from './persistence/repositories/cloud-sync-repository.js'
 import { SourceRepository } from './persistence/repositories/source-repository.js'
 import { SyncRunRepository } from './persistence/repositories/sync-run-repository.js'
 import { VaultRepository } from './persistence/repositories/vault-repository.js'
@@ -22,17 +26,20 @@ import { RssConnector } from './connectors/rss-connector.js'
 import { CloudAuthService } from './cloud/cloud-auth-service.js'
 import { readCloudConfig } from './cloud/cloud-config.js'
 import { SecureSessionStorage } from './cloud/secure-session-storage.js'
+import { SupabaseRemoteSyncProvider } from './cloud/supabase-remote-sync-provider.js'
 import { registerCloudIpcHandlers } from './ipc/cloud-handlers.js'
 import { probeCodex } from './providers/codex-probe.js'
 import { probeQoder } from './providers/qoder-probe.js'
 
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
+let quitDrainComplete = false
 let database: AlphaKDatabase | null = null
 let jobQueueService: JobQueueService | null = null
 let sourceSyncWorker: SourceSyncWorker | null = null
 let syncRunRepository: SyncRunRepository | null = null
 let cloudAuthService: CloudAuthService | null = null
+let cloudSyncWorker: CloudSyncWorker | null = null
 let pendingAuthDeepLink: string | null = null
 let providers: ProviderProbe[] = []
 let backgroundTicks = 0
@@ -194,9 +201,16 @@ async function selectVaultDirectory(): Promise<string | undefined> {
   return result.canceled ? undefined : result.filePaths[0]
 }
 
-app.on('before-quit', () => {
+app.on('before-quit', (event) => {
   isQuitting = true
   logPhaseZero('before-quit', { backgroundTicks })
+  if (cloudSyncWorker && !quitDrainComplete) {
+    event.preventDefault()
+    void cloudSyncWorker.shutdown().finally(() => {
+      quitDrainComplete = true
+      app.quit()
+    })
+  }
 })
 
 app.on('activate', () => {
@@ -214,6 +228,8 @@ void app.whenReady().then(async () => {
   logPhaseZero('database-ready', database.health)
   const vaultRepository = new VaultRepository(database.database)
   const knowledgeRepository = new KnowledgeRepository(database.database)
+  const knowledgeStateRepository = new KnowledgeStateRepository(database.database)
+  const cloudSyncRepository = new CloudSyncRepository(database.database)
   const artifactRepository = new ArtifactRepository(database.database)
   const sourceRepository = new SourceRepository(database.database)
   const jobRepository = new JobRepository(database.database)
@@ -250,9 +266,26 @@ void app.whenReady().then(async () => {
     config: readCloudConfig(),
     storage: new SecureSessionStorage(join(app.getPath('userData'), 'supabase-session.bin')),
     openExternal: (url) => shell.openExternal(url),
-    onStatusChanged: (status) => broadcastAppEvent({ type: 'cloud.status.changed', status }),
+    onStatusChanged: (status) => {
+      broadcastAppEvent({ type: 'cloud.status.changed', status })
+      if (status.auth === 'signed_in') cloudSyncWorker?.wake()
+    },
   })
   await cloudAuthService.initialize()
+  cloudSyncWorker = new CloudSyncWorker({
+    authService: cloudAuthService,
+    repository: cloudSyncRepository,
+    knowledgeRepository,
+    knowledgeStateRepository,
+    sourceRepository,
+    createProvider: () =>
+      new SupabaseRemoteSyncProvider(cloudAuthService!.getAuthenticatedClient()),
+    deviceName: hostname(),
+    platform: 'macos',
+    appVersion: app.getVersion(),
+    onError: (error) =>
+      console.error('[phase-three] cloud sync error', error instanceof Error ? error.message : String(error)),
+  })
   const ingestionService = new SourceIngestionService({
     database: database.database,
     knowledgeRepository,
@@ -270,7 +303,10 @@ void app.whenReady().then(async () => {
     onJobUpdated: (job) => broadcastAppEvent({ type: 'job.updated', job }),
     onSyncRunUpdated: (syncRun) => broadcastAppEvent({ type: 'source.sync.updated', syncRun }),
     onSourceUpdated: (source) => broadcastAppEvent({ type: 'source.updated', source }),
-    onInboxChanged: (itemIds) => broadcastAppEvent({ type: 'inbox.changed', itemIds }),
+    onInboxChanged: (itemIds) => {
+      broadcastAppEvent({ type: 'inbox.changed', itemIds })
+      cloudSyncWorker?.enqueueKnowledgeItems(itemIds)
+    },
     onError: (error) => console.error('[phase-two] source worker error', error),
   })
   console.info(
@@ -283,6 +319,7 @@ void app.whenReady().then(async () => {
   pendingAuthDeepLink = null
   if (startupDeepLink) void handleAuthDeepLink(startupDeepLink)
   sourceSyncWorker.start()
+  cloudSyncWorker.start()
 
   powerMonitor.on('suspend', () => {
     lastLifecycleEvent = 'suspend'
@@ -291,6 +328,7 @@ void app.whenReady().then(async () => {
   powerMonitor.on('resume', () => {
     lastLifecycleEvent = 'resume'
     void refreshProviders()
+    cloudSyncWorker?.wake()
   })
 
   setInterval(() => {
@@ -306,6 +344,7 @@ void app.whenReady().then(async () => {
 
 app.on('will-quit', () => {
   sourceSyncWorker?.stop()
+  cloudSyncWorker?.stop()
   cloudAuthService?.dispose()
   const interruptedJobs = database
     ? database.database.transaction(() => {

@@ -79,6 +79,22 @@ export class CloudAuthService {
     return { ...this.status, user: this.status.user ? { ...this.status.user } : null }
   }
 
+  getAuthenticatedClient(): SupabaseClient {
+    const client = this.requireClient()
+    if (this.status.auth !== 'signed_in' || !this.status.user) {
+      throw new CloudServiceError('AUTH_FAILED', 'Supabase 会话尚未登录。')
+    }
+    return client
+  }
+
+  updateSyncStatus(
+    sync: CloudStatus['sync'],
+    detail: Partial<Pick<CloudStatus, 'pendingChanges' | 'lastSyncedAt' | 'lastError'>> = {},
+  ): void {
+    if (this.status.auth !== 'signed_in') return
+    this.updateStatus({ sync, ...detail })
+  }
+
   async signInWithGitHub(): Promise<CloudStatus> {
     const client = this.requireClient()
     this.updateStatus({ auth: 'signing_in', lastError: null })
@@ -157,10 +173,13 @@ export class CloudAuthService {
   }
 
   private applyUser(user: User | null): void {
+    const ownerChanged = this.status.user?.id !== user?.id
     this.updateStatus({
       auth: user ? 'signed_in' : 'signed_out',
       user: user ? toCloudUser(user) : null,
       sync: user ? 'idle' : 'disabled',
+      pendingChanges: ownerChanged ? 0 : this.status.pendingChanges,
+      lastSyncedAt: ownerChanged ? null : this.status.lastSyncedAt,
       lastError: null,
     })
   }

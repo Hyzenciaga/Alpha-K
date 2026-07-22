@@ -25,11 +25,11 @@ describe('database bootstrap', () => {
     const path = join(directory, 'app.sqlite')
 
     const first = openAlphaKDatabase(path)
-    expect(first.health).toMatchObject({ migrationVersion: 5, fts5: true, trigramChinese: true })
+    expect(first.health).toMatchObject({ migrationVersion: 6, fts5: true, trigramChinese: true })
     first.close()
 
     const reopened = openAlphaKDatabase(path)
-    expect(reopened.health.migrationVersion).toBe(5)
+    expect(reopened.health.migrationVersion).toBe(6)
     reopened.close()
   })
 

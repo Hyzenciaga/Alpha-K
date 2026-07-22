@@ -46,10 +46,28 @@ stored sequence. For simultaneous edits of the same field, the last change commi
 wins. This is intentionally simple for the first two-client slice and can later be replaced by
 field-level revisions without changing the public IPC contract.
 
+## Backend synchronization lifecycle
+
+The Main process keeps two different local representations:
+
+- `cloud_sync_outbox` contains durable, account-scoped writes that have not reached Supabase yet;
+- `cloud_knowledge_ref_cache` and `cloud_user_state_cache` contain remote metadata already observed by
+  this installation, including references that have no local file or local `KnowledgeItem`.
+
+After sign-in, the worker registers this installation, pushes due knowledge references before their
+user-state rows, then pulls `sync_changes` after the stored sequence. Network failure preserves the
+outbox and moves its next attempt forward with bounded exponential backoff. Local ingestion and
+local state edits never wait for this worker.
+
+Signing in for the first time does not sweep old Vault contents into the account. Only knowledge
+created or changed while that account is active is queued automatically; an explicit import choice
+can be added later for pre-existing local data.
+
 ## Parallel delivery plan
 
 1. Contract baseline: this document, shared DTOs, IPC channels, local migration, and Supabase SQL.
-2. Backend branch: GitHub OAuth, encrypted session persistence, outbox/pull cursor, Supabase adapter.
+2. Backend branch: encrypted session persistence, outbox/pull cursor, Supabase adapter, device
+   registration, metadata caches, and offline retry.
 3. Frontend branch: account controls and sync status using typed fixtures only.
 4. Integration branch: backend first, frontend second, then packaged macOS OAuth and two-client tests.
 

@@ -3,6 +3,7 @@ import { phaseZeroFtsMigration } from './002-phase-zero-fts.js'
 import { phaseOneFoundationMigration } from './003-phase-one-foundation.js'
 import { phaseTwoSourceIngestionMigration } from './004-phase-two-source-ingestion.js'
 import { cloudSyncFoundationMigration } from './005-cloud-sync-foundation.js'
+import { cloudSyncCacheMigration } from './006-cloud-sync-cache.js'
 import type { Migration } from './types.js'
 
 export const migrations: Migration[] = [
@@ -11,4 +12,5 @@ export const migrations: Migration[] = [
   phaseOneFoundationMigration,
   phaseTwoSourceIngestionMigration,
   cloudSyncFoundationMigration,
+  cloudSyncCacheMigration,
 ]
