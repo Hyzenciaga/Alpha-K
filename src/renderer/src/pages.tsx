@@ -1,0 +1,808 @@
+import { useState } from 'react'
+import {
+  Activity,
+  Archive,
+  ArrowRight,
+  Atom,
+  Bot,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  Code2,
+  Copy,
+  Download,
+  ExternalLink,
+  FileInput,
+  FileText,
+  Filter,
+  Folder,
+  FolderOpen,
+  Gauge,
+  Grid2X2,
+  Heart,
+  Inbox,
+  Library,
+  List,
+  MoreHorizontal,
+  Pause,
+  Play,
+  Plus,
+  RefreshCw,
+  Rss,
+  Send,
+  Settings2,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Trash2,
+  WandSparkles,
+  X,
+} from 'lucide-react'
+import type { PhaseZeroStatus, ProviderProbeStatus } from '../../shared/contracts'
+import {
+  activity,
+  inboxItems as initialInboxItems,
+  libraryItems,
+  reports,
+  sourceItems as initialSourceItems,
+  weeklyBars,
+  type KnowledgeItem,
+  type PageId,
+  type SourceItem,
+} from './mock-data'
+import {
+  Button,
+  IconButton,
+  PageHeader,
+  ProgressRing,
+  SearchField,
+  SegmentedControl,
+  SelectButton,
+  StatusDot,
+  Tag,
+  Toggle,
+} from './components'
+
+type Navigate = (page: PageId) => void
+type Notify = (message: string) => void
+
+export function TodayPage({ onNavigate, notify }: { onNavigate: Navigate; notify: Notify }): React.JSX.Element {
+  return (
+    <div className="page page-today">
+      <PageHeader
+        eyebrow="WEDNESDAY · JULY 22"
+        title="早上好，Steve"
+        description="昨晚到现在，5 个来源带来了 18 条新内容。Agent 已经帮你挑出 4 条值得优先确认。"
+        actions={
+          <>
+            <Button variant="secondary" icon={<RefreshCw size={16} />} onClick={() => notify('已创建全量同步任务')}>
+              同步全部
+            </Button>
+            <Button icon={<Sparkles size={16} />} onClick={() => onNavigate('query')}>
+              生成今日摘要
+            </Button>
+          </>
+        }
+      />
+
+      <section className="metric-grid" aria-label="今日概览">
+        <MetricCard label="今日新增" value="18" change="来自 5 个来源" icon={<FileInput size={18} />} />
+        <MetricCard label="待确认" value="7" change="其中 4 条高价值" icon={<Inbox size={18} />} accent />
+        <MetricCard label="本周已收录" value="46" change="比上周多 12%" icon={<Archive size={18} />} />
+        <MetricCard label="后台任务" value="2" change="1 运行中 · 1 等待" icon={<Activity size={18} />} />
+      </section>
+
+      <div className="dashboard-grid">
+        <section className="panel focus-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="panel-kicker">AGENT PICKS</p>
+              <h2>今天值得先看</h2>
+            </div>
+            <button className="text-action" type="button" onClick={() => onNavigate('inbox')}>
+              查看全部 <ArrowRight size={15} />
+            </button>
+          </div>
+          <div className="focus-list">
+            {initialInboxItems.slice(0, 3).map((item, index) => (
+              <article className="focus-item" key={item.id}>
+                <span className="focus-rank">0{index + 1}</span>
+                <div className="focus-copy">
+                  <div className="item-meta">
+                    <span>{item.source}</span>
+                    <span>{item.time}</span>
+                  </div>
+                  <h3>{item.title}</h3>
+                  <p>{item.summary}</p>
+                  <div className="tag-row">
+                    {item.labels.slice(0, 2).map((label) => (
+                      <Tag key={label}>{label}</Tag>
+                    ))}
+                  </div>
+                </div>
+                <button className="round-arrow" type="button" aria-label={`打开 ${item.title}`} onClick={() => onNavigate('inbox')}>
+                  <ChevronRight size={18} />
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <aside className="side-stack">
+          <section className="panel digest-card">
+            <div className="digest-mark"><WandSparkles size={19} /></div>
+            <p className="panel-kicker">TODAY’S BRIEF</p>
+            <h2>信息正在向“可恢复的本地 Agent”聚拢</h2>
+            <p>
+              今天最明显的交叉主题是：文件协议、运行时记忆和持久化任务正在从工程细节变成产品边界。
+            </p>
+            <button type="button" onClick={() => onNavigate('query')}>
+              阅读完整摘要 <ArrowRight size={15} />
+            </button>
+          </section>
+
+          <section className="panel activity-panel">
+            <div className="panel-heading compact-heading">
+              <h2>最近活动</h2>
+              <IconButton label="更多活动"><MoreHorizontal size={17} /></IconButton>
+            </div>
+            <ol className="activity-list">
+              {activity.map((event) => (
+                <li key={`${event.time}-${event.text}`}>
+                  <StatusDot status={event.tone === 'neutral' ? 'muted' : event.tone} />
+                  <span>{event.text}</span>
+                  <time>{event.time}</time>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </aside>
+
+        <section className="panel weekly-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="panel-kicker">THIS WEEK</p>
+              <h2>采集节奏</h2>
+            </div>
+            <span className="big-inline-number">113 <small>条内容</small></span>
+          </div>
+          <div className="bar-chart" role="img" aria-label="本周每天新增内容：周一 9，周二 14，周三 8，周四 21，周五 17，周六 26，周日 18">
+            {weeklyBars.map((value, index) => (
+              <div className="bar-column" key={`${value}-${index}`}>
+                <span className="bar-value">{value}</span>
+                <div className="bar-track"><span style={{ height: `${(value / 26) * 100}%` }} /></div>
+                <small>{['一', '二', '三', '四', '五', '六', '日'][index]}</small>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="panel source-health-panel">
+          <div className="panel-heading compact-heading">
+            <div>
+              <p className="panel-kicker">SOURCE HEALTH</p>
+              <h2>来源状态</h2>
+            </div>
+            <button className="text-action" type="button" onClick={() => onNavigate('sources')}>管理</button>
+          </div>
+          <div className="health-summary">
+            <ProgressRing value={0.92} label="健康" />
+            <div>
+              <strong>5 个来源正常同步</strong>
+              <p>Codex 输出目录需要重新确认文件访问范围。</p>
+              <span><StatusDot status="warning" /> 1 个提醒</span>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function MetricCard({
+  label,
+  value,
+  change,
+  icon,
+  accent = false,
+}: {
+  label: string
+  value: string
+  change: string
+  icon: React.ReactNode
+  accent?: boolean
+}): React.JSX.Element {
+  return (
+    <article className={`metric-card${accent ? ' is-accent' : ''}`}>
+      <div className="metric-icon">{icon}</div>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{change}</small>
+    </article>
+  )
+}
+
+export function InboxPage({ notify }: { notify: Notify }): React.JSX.Element {
+  const [items, setItems] = useState(initialInboxItems)
+  const [activeId, setActiveId] = useState(initialInboxItems[0]?.id)
+  const [filter, setFilter] = useState<'all' | 'important' | 'later'>('all')
+  const [search, setSearch] = useState('')
+  const activeItem = items.find((item) => item.id === activeId) ?? items[0]
+  const visibleItems = items.filter((item) => {
+    const matchesSearch = `${item.title} ${item.summary} ${item.labels.join(' ')}`.toLowerCase().includes(search.toLowerCase())
+    const matchesFilter = filter === 'all' || (filter === 'important' ? item.importance >= 4 : item.state === '稍后阅读')
+    return matchesSearch && matchesFilter
+  })
+
+  function resolveItem(message: string): void {
+    if (!activeItem) return
+    const nextItems = items.filter((item) => item.id !== activeItem.id)
+    setItems(nextItems)
+    setActiveId(nextItems[0]?.id)
+    notify(message)
+  }
+
+  return (
+    <div className="page page-inbox">
+      <PageHeader
+        eyebrow="REVIEW QUEUE"
+        title="收件箱"
+        description="Agent 已经完成初步整理。你只需要确认真正值得进入长期知识库的内容。"
+        actions={<Button variant="secondary" icon={<CheckCircle2 size={16} />} onClick={() => notify('已批量收录 4 条高置信度内容')}>批量处理</Button>}
+      />
+      <div className="toolbar toolbar-split">
+        <SegmentedControl
+          label="收件箱筛选"
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: 'all', label: `全部 ${items.length}` },
+            { value: 'important', label: '高价值' },
+            { value: 'later', label: '稍后阅读' },
+          ]}
+        />
+        <div className="toolbar-actions">
+          <SearchField value={search} onChange={setSearch} placeholder="搜索收件箱" compact />
+          <IconButton label="筛选"><Filter size={17} /></IconButton>
+        </div>
+      </div>
+
+      <div className="review-layout">
+        <section className="review-list" aria-label="待确认内容">
+          {visibleItems.length === 0 ? (
+            <div className="empty-state"><CheckCircle2 size={28} /><h3>这里已经处理完了</h3><p>换一个筛选条件，或等待下次同步。</p></div>
+          ) : visibleItems.map((item) => (
+            <button
+              className={`review-row${item.id === activeItem?.id ? ' is-active' : ''}`}
+              type="button"
+              key={item.id}
+              onClick={() => setActiveId(item.id)}
+            >
+              <div className="source-glyph">{sourceGlyph(item.sourceType)}</div>
+              <div className="review-row-copy">
+                <div className="item-meta"><span>{item.source}</span><span>{item.time}</span></div>
+                <h3>{item.title}</h3>
+                <p>{item.summary}</p>
+                <div className="row-footer">
+                  <div className="tag-row">{item.labels.slice(0, 2).map((label) => <Tag key={label}>{label}</Tag>)}</div>
+                  <span className="importance"><Star size={13} fill="currentColor" /> {item.importance}.0</span>
+                </div>
+              </div>
+            </button>
+          ))}
+        </section>
+
+        {activeItem && (
+          <aside className="review-detail">
+            <header className="detail-header">
+              <div className="item-meta"><span>{activeItem.source}</span><span>{activeItem.time}</span></div>
+              <div className="detail-tools">
+                <IconButton label="打开原文"><ExternalLink size={17} /></IconButton>
+                <IconButton label="更多操作"><MoreHorizontal size={17} /></IconButton>
+              </div>
+            </header>
+            <h2>{activeItem.title}</h2>
+            <p className="detail-byline">{activeItem.author} · 约 {activeItem.readingMinutes} 分钟阅读</p>
+            <div className="agent-summary">
+              <div className="summary-label"><Sparkles size={15} /><span>Agent 摘要</span><Tag tone="success">{Math.round(activeItem.confidence * 100)}% 置信度</Tag></div>
+              <p>{activeItem.summary}</p>
+            </div>
+            <section className="detail-section">
+              <div className="section-label"><span>建议标签</span><button type="button"><Plus size={14} /> 添加</button></div>
+              <div className="editable-tags">
+                {activeItem.labels.map((label) => <Tag key={label}>{label}<X size={12} /></Tag>)}
+              </div>
+            </section>
+            <section className="detail-section detail-grid">
+              <div><span>重要度</span><strong className="star-score"><Star size={15} fill="currentColor" /> {activeItem.importance} / 5</strong></div>
+              <div><span>分析 Provider</span><strong>Codex</strong></div>
+              <div><span>内容状态</span><strong>{activeItem.state}</strong></div>
+              <div><span>内容 ID</span><strong className="mono-value">{activeItem.id}</strong></div>
+            </section>
+            <div className="detail-note">
+              <label htmlFor="review-note">你的备注</label>
+              <textarea id="review-note" placeholder="补充为什么这条内容值得保留…" />
+            </div>
+            <footer className="review-actions">
+              <Button variant="ghost" icon={<Trash2 size={16} />} onClick={() => resolveItem('已忽略该内容')}>忽略</Button>
+              <Button variant="secondary" icon={<RefreshCw size={16} />} onClick={() => notify('已创建重新分析任务')}>重新分析</Button>
+              <Button icon={<Archive size={16} />} onClick={() => resolveItem('已收录到知识库')}>确认收录</Button>
+            </footer>
+          </aside>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export function LibraryPage({ notify }: { notify: Notify }): React.JSX.Element {
+  const [search, setSearch] = useState('')
+  const [view, setView] = useState<'grid' | 'list'>('grid')
+  const [selectedLabels, setSelectedLabels] = useState<string[]>([])
+  const labels = ['Local-first', 'Agent Memory', 'RAG', 'SQLite', 'Reliability', 'Product Design']
+  const visibleItems = libraryItems.filter((item) => {
+    const matchesSearch = `${item.title} ${item.summary} ${item.labels.join(' ')}`.toLowerCase().includes(search.toLowerCase())
+    const matchesLabels = selectedLabels.length === 0 || selectedLabels.every((label) => item.labels.includes(label))
+    return matchesSearch && matchesLabels
+  })
+
+  function toggleLabel(label: string): void {
+    setSelectedLabels((current) => current.includes(label) ? current.filter((item) => item !== label) : [...current, label])
+  }
+
+  return (
+    <div className="page page-library">
+      <PageHeader
+        eyebrow="KNOWLEDGE VAULT"
+        title="知识库"
+        description="已确认的内容、笔记与报告都保存在你的本地 Vault 中。"
+        actions={<Button icon={<Plus size={16} />} onClick={() => notify('已打开导入文件选择器（Mock）')}>导入文件</Button>}
+      />
+      <div className="library-layout">
+        <aside className="filter-rail">
+          <div className="filter-section">
+            <h3>范围</h3>
+            <button className="is-active" type="button"><Library size={16} /> 全部内容 <span>128</span></button>
+            <button type="button"><Heart size={16} /> 收藏 <span>23</span></button>
+            <button type="button"><Clock3 size={16} /> 稍后阅读 <span>11</span></button>
+          </div>
+          <div className="filter-section">
+            <div className="filter-title"><h3>标签</h3><button type="button">清除</button></div>
+            {labels.map((label) => (
+              <label className="check-row" key={label}>
+                <input type="checkbox" checked={selectedLabels.includes(label)} onChange={() => toggleLabel(label)} />
+                <span className="custom-check">{selectedLabels.includes(label) && <Check size={12} />}</span>
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+          <div className="collection-callout">
+            <FolderOpen size={19} />
+            <strong>3 个专题</strong>
+            <p>把相关资料组织成持续生长的研究方向。</p>
+            <button type="button">查看专题</button>
+          </div>
+        </aside>
+
+        <section className="library-content">
+          <div className="toolbar library-toolbar">
+            <SearchField value={search} onChange={setSearch} placeholder="搜索标题、摘要、作者或标签" />
+            <SelectButton>最近更新</SelectButton>
+            <div className="view-toggle">
+              <IconButton label="卡片视图" active={view === 'grid'} onClick={() => setView('grid')}><Grid2X2 size={17} /></IconButton>
+              <IconButton label="列表视图" active={view === 'list'} onClick={() => setView('list')}><List size={18} /></IconButton>
+            </div>
+          </div>
+          <div className="result-summary"><span>显示 {visibleItems.length} 条内容</span><span>Vault 最后更新于 2 分钟前</span></div>
+          <div className={`library-items is-${view}`}>
+            {visibleItems.map((item) => <LibraryCard key={item.id} item={item} view={view} notify={notify} />)}
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function LibraryCard({ item, view, notify }: { item: KnowledgeItem; view: 'grid' | 'list'; notify: Notify }): React.JSX.Element {
+  return (
+    <article className="library-card">
+      <div className="library-card-top">
+        <div className="source-glyph">{sourceGlyph(item.sourceType)}</div>
+        <div className="card-quick-actions">
+          <IconButton label="收藏" onClick={() => notify('已加入收藏')}><Heart size={16} /></IconButton>
+          <IconButton label="更多"><MoreHorizontal size={17} /></IconButton>
+        </div>
+      </div>
+      <div className="item-meta"><span>{item.source}</span><span>{item.time}</span></div>
+      <h3>{item.title}</h3>
+      <p>{item.summary}</p>
+      <div className="tag-row">{item.labels.map((label) => <Tag key={label}>{label}</Tag>)}</div>
+      <footer>
+        <span>{item.author}</span>
+        <button type="button" onClick={() => notify(`已打开「${item.title}」`)}>阅读 <ArrowRight size={14} /></button>
+      </footer>
+      {view === 'list' && <span className="list-reading-time">{item.readingMinutes} min</span>}
+    </article>
+  )
+}
+
+export function SourcesPage({ notify }: { notify: Notify }): React.JSX.Element {
+  const [sources, setSources] = useState<SourceItem[]>(initialSourceItems)
+  const [kind, setKind] = useState<'all' | 'RSS' | 'arXiv' | '目录'>('all')
+  const filtered = kind === 'all' ? sources : sources.filter((source) => source.kind === kind)
+
+  function toggleSource(id: string, enabled: boolean): void {
+    setSources((current) => current.map((source) => source.id === id ? { ...source, enabled } : source))
+    notify(enabled ? '来源已启用' : '来源已暂停')
+  }
+
+  return (
+    <div className="page page-sources">
+      <PageHeader
+        eyebrow="INGESTION"
+        title="订阅源"
+        description="管理外部信息从哪里来、多久同步一次，以及进入收件箱前应用哪些默认规则。"
+        actions={<Button icon={<Plus size={16} />} onClick={() => notify('已打开新建来源面板（Mock）')}>新建来源</Button>}
+      />
+      <section className="source-overview">
+        <div><span className="overview-icon"><Rss size={19} /></span><div><strong>5</strong><span>全部来源</span></div></div>
+        <div><span className="overview-icon"><CheckCircle2 size={19} /></span><div><strong>4</strong><span>运行正常</span></div></div>
+        <div><span className="overview-icon"><FileInput size={19} /></span><div><strong>6</strong><span>今日新增</span></div></div>
+        <div><span className="overview-icon"><Clock3 size={19} /></span><div><strong>37m</strong><span>下次同步</span></div></div>
+      </section>
+      <div className="toolbar">
+        <SegmentedControl
+          label="来源类型"
+          value={kind}
+          onChange={setKind}
+          options={[
+            { value: 'all', label: '全部' },
+            { value: 'RSS', label: 'RSS' },
+            { value: 'arXiv', label: 'arXiv' },
+            { value: '目录', label: '目录' },
+          ]}
+        />
+        <Button variant="secondary" icon={<RefreshCw size={16} />} onClick={() => notify('已创建全部来源同步任务')}>立即同步全部</Button>
+      </div>
+      <section className="source-table-wrap">
+        <table className="source-table">
+          <thead><tr><th>来源</th><th>同步计划</th><th>最近同步</th><th>新增</th><th>状态</th><th><span className="sr-only">操作</span></th></tr></thead>
+          <tbody>
+            {filtered.map((source) => (
+              <tr key={source.id}>
+                <td>
+                  <div className={`source-type-icon type-${source.kind.toLowerCase()}`}>{sourceIcon(source.kind)}</div>
+                  <div className="source-cell-copy"><strong>{source.name}</strong><span>{source.description}</span><div className="tag-row">{source.labels.map((label) => <Tag key={label}>{label}</Tag>)}</div></div>
+                </td>
+                <td><strong>{source.schedule}</strong><span>下次：{source.nextSync}</span></td>
+                <td><span>{source.lastSync}</span></td>
+                <td><span className={source.newItems > 0 ? 'new-count' : undefined}>{source.newItems}</span></td>
+                <td><span className="health-label"><StatusDot status={!source.enabled ? 'muted' : source.health === 'healthy' ? 'success' : 'warning'} /> {!source.enabled ? '已暂停' : source.health === 'healthy' ? '正常' : '需关注'}</span></td>
+                <td><Toggle checked={source.enabled} onChange={(enabled) => toggleSource(source.id, enabled)} label={`${source.enabled ? '暂停' : '启用'} ${source.name}`} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
+    </div>
+  )
+}
+
+export function QueryPage({ notify }: { notify: Notify }): React.JSX.Element {
+  const [question, setQuestion] = useState('本周 Agent Memory 方向有哪些值得关注的进展？')
+  const [scope, setScope] = useState<'week' | 'all' | 'selected'>('week')
+  const [provider, setProvider] = useState<'auto' | 'codex' | 'qoder'>('auto')
+  const [answer, setAnswer] = useState(false)
+  const [generating, setGenerating] = useState(false)
+
+  function submitQuestion(): void {
+    if (!question.trim() || generating) return
+    setGenerating(true)
+    setAnswer(false)
+    window.setTimeout(() => {
+      setGenerating(false)
+      setAnswer(true)
+      notify('回答已生成，并验证了 5 条本地引用')
+    }, 850)
+  }
+
+  return (
+    <div className="page page-query">
+      <PageHeader
+        eyebrow="ASK YOUR VAULT"
+        title="问答"
+        description="应用先从本地知识库确定范围，再让 Agent 基于可验证的资料回答。"
+      />
+      <div className="query-layout">
+        <aside className="conversation-rail">
+          <Button icon={<Plus size={16} />} onClick={() => { setQuestion(''); setAnswer(false) }}>新建问题</Button>
+          <div className="conversation-group">
+            <span>今天</span>
+            <button className="is-active" type="button">Agent Memory 的最新进展</button>
+            <button type="button">今天有什么值得看？</button>
+          </div>
+          <div className="conversation-group">
+            <span>本周</span>
+            <button type="button">比较三篇 Local-first 文章</button>
+            <button type="button">SQLite 检索方案梳理</button>
+          </div>
+        </aside>
+
+        <section className="query-main">
+          <div className="query-composer">
+            <div className="composer-topline"><Sparkles size={17} /><span>基于你的本地知识提问</span></div>
+            <textarea value={question} onChange={(event) => setQuestion(event.target.value)} aria-label="问题" />
+            <div className="composer-controls">
+              <div>
+                <SegmentedControl label="知识范围" value={scope} onChange={setScope} options={[
+                  { value: 'week', label: '本周' },
+                  { value: 'all', label: '全库' },
+                  { value: 'selected', label: '已选择' },
+                ]} />
+                <SelectButton
+                  onClick={() => setProvider(provider === 'auto' ? 'codex' : provider === 'codex' ? 'qoder' : 'auto')}
+                >
+                  {provider === 'auto' ? '自动选择 Agent' : provider === 'codex' ? 'Codex' : 'Qoder'}
+                </SelectButton>
+              </div>
+              <button className="send-button" type="button" disabled={!question.trim() || generating} aria-label="发送问题" onClick={submitQuestion}>
+                {generating ? <RefreshCw size={18} className="spin" /> : <Send size={18} />}
+              </button>
+            </div>
+          </div>
+
+          {!answer && !generating && (
+            <div className="query-suggestions">
+              <p>你也可以这样问</p>
+              <div>
+                {['今天有什么值得看？', '对比选中的三篇材料', '有哪些高价值内容还没确认？', '基于本周内容提出研究问题'].map((prompt) => (
+                  <button key={prompt} type="button" onClick={() => setQuestion(prompt)}>{prompt}<ArrowRight size={14} /></button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {generating && <AnswerSkeleton />}
+
+          {answer && (
+            <article className="answer-card">
+              <header><div className="answer-avatar"><Bot size={18} /></div><div><strong>Alpha-K Answer</strong><span>Qoder · 使用 5 条资料 · 8.4s</span></div><IconButton label="复制回答" onClick={() => notify('回答已复制')}><Copy size={16} /></IconButton></header>
+              <div className="answer-body">
+                <p>本周 Agent Memory 方向有三个值得关注的进展：</p>
+                <h3>1. Memory 正在变成运行时原语</h3>
+                <p>新的工作不再把记忆理解为“把聊天记录塞进向量库”，而是区分短期轨迹、长期语义记忆和用户偏好，并为写入、遗忘和冲突建立显式生命周期。<Citation id="K:arxiv-2607.18421" /></p>
+                <h3>2. 可复现性依赖 Retrieval Snapshot</h3>
+                <p>对知识型 Agent 来说，历史答案能否解释，不取决于保存外部 Session，而取决于是否保存了当时使用的资料范围与稳定引用 ID。<Citation id="K:research-retrieval-snapshot" /></p>
+                <h3>3. 文件协议正在成为产品边界</h3>
+                <p>Local-first 产品倾向于把知识内容保存在可迁移文件中，把数据库降为索引和运行状态。这让 Agent 可以被替换，而用户资产不随应用生命周期消失。<Citation id="K:ink-switch-files-api" /></p>
+                <div className="answer-callout"><strong>值得继续追踪</strong><span>如何为长期 Memory 建立可解释的遗忘策略，以及怎样衡量跨任务记忆带来的真实收益。</span></div>
+              </div>
+              <footer><button type="button" onClick={() => notify('已保存为 Note')}>保存为笔记</button><button type="button" onClick={() => notify('已加入 Agent Memory 专题')}>加入专题</button><button type="button" onClick={submitQuestion}><RefreshCw size={14} /> 重新生成</button></footer>
+            </article>
+          )}
+        </section>
+      </div>
+    </div>
+  )
+}
+
+function Citation({ id }: { id: string }): React.JSX.Element {
+  return <button className="citation" type="button">{id}</button>
+}
+
+function AnswerSkeleton(): React.JSX.Element {
+  return (
+    <div className="answer-skeleton" aria-label="正在生成回答">
+      <div className="skeleton-header"><span /><div><i /><i /></div></div>
+      <i /><i /><i className="short" /><i /><i className="medium" />
+    </div>
+  )
+}
+
+export function ReportsPage({ notify }: { notify: Notify }): React.JSX.Element {
+  const [selectedId, setSelectedId] = useState(reports[0].id)
+  const selected = reports.find((report) => report.id === selectedId) ?? reports[0]
+  return (
+    <div className="page page-reports">
+      <PageHeader
+        eyebrow="SYNTHESIS"
+        title="报告"
+        description="把一周的阅读与收藏沉淀成可脱离应用阅读、带有本地引用的 Markdown 产物。"
+        actions={<Button icon={<Sparkles size={16} />} onClick={() => notify('已创建本周报告生成任务')}>生成本周报告</Button>}
+      />
+      <div className="reports-layout">
+        <aside className="report-list">
+          <div className="report-list-heading"><span>周报</span><IconButton label="报告筛选"><Filter size={16} /></IconButton></div>
+          {reports.map((report) => (
+            <button className={report.id === selectedId ? 'is-active' : undefined} type="button" key={report.id} onClick={() => setSelectedId(report.id)}>
+              <span className="report-file-icon"><FileText size={18} /></span>
+              <div><strong>{report.title}</strong><span>{report.period}</span><small>{report.items} 条引用 · {report.updatedAt}</small></div>
+              {report.status === '草稿' && <Tag tone="warning">草稿</Tag>}
+            </button>
+          ))}
+        </aside>
+
+        <article className="report-preview">
+          <header>
+            <div><p className="page-eyebrow">WEEKLY DIGEST</p><h2>{selected.title}</h2><span>{selected.period} · {selected.items} 条资料</span></div>
+            <div><IconButton label="打开 Markdown"><ExternalLink size={17} /></IconButton><IconButton label="下载报告"><Download size={17} /></IconButton><IconButton label="更多"><MoreHorizontal size={17} /></IconButton></div>
+          </header>
+          <div className="report-paper">
+            <p className="report-lead">{selected.excerpt}</p>
+            <hr />
+            <h3>本周判断</h3>
+            <p>Agent 基础设施的竞争焦点正在从“能调用多少工具”，转向任务是否可恢复、知识是否可验证，以及用户是否真正拥有产生的数据。</p>
+            <blockquote>好的知识客户端不应该让模型成为唯一的入口。文件、索引和引用协议共同构成了更长寿的数据层。</blockquote>
+            <h3>三个信号</h3>
+            <ol>
+              <li><strong>Memory Runtime：</strong>记忆的写入、遗忘和权限开始拥有独立协议。</li>
+              <li><strong>Local-first：</strong>文件系统重新成为 AI 产品的数据交换层。</li>
+              <li><strong>Durable Jobs：</strong>桌面端也需要租约、心跳和恢复，而不只是一个定时器。</li>
+            </ol>
+            <h3>下周继续关注</h3>
+            <p>本地 Agent Provider 的稳定接入面，以及中文个人知识库在无远程 Embedding 条件下的召回质量。</p>
+            <div className="report-citations"><span>引用资料</span><button type="button">[K:arxiv-memory-runtime]</button><button type="button">[K:files-are-api]</button><button type="button">[K:durable-desktop-jobs]</button></div>
+          </div>
+          <footer><span>Markdown 保存在 Vault/reports/weekly/</span><Button variant="secondary" icon={<RefreshCw size={15} />} onClick={() => notify('已创建报告重新生成任务')}>重新生成</Button></footer>
+        </article>
+      </div>
+    </div>
+  )
+}
+
+const providerLabels: Record<ProviderProbeStatus, string> = {
+  available: '可用',
+  not_installed: '未安装',
+  broken_installation: '安装损坏',
+  unauthenticated: '未登录',
+  unsupported_version: '版本不支持',
+}
+
+export function AgentsPage({
+  status,
+  refreshing,
+  onRefresh,
+  notify,
+}: {
+  status: PhaseZeroStatus | null
+  refreshing: boolean
+  onRefresh: () => void
+  notify: Notify
+}): React.JSX.Element {
+  const [workflows, setWorkflows] = useState([
+    { id: 'preannotate', name: '新内容预标注', description: '提取摘要、标签、重要度和置信度', provider: 'Codex', schedule: '新内容到达时', enabled: true, lastRun: '3 分钟前' },
+    { id: 'weekly', name: '每周知识摘要', description: '总结本周确认、收藏和高价值内容', provider: 'Qoder', schedule: '周日 20:00', enabled: true, lastRun: '3 天前' },
+    { id: 'external', name: '外部产物分析', description: '分析 Codex/Qoder 工作目录中的新文档', provider: 'Codex', schedule: '文件稳定后', enabled: true, lastRun: '1 小时前' },
+  ])
+  const codex = status?.providers.find((provider) => provider.provider === 'codex')
+  const qoder = status?.providers.find((provider) => provider.provider === 'qoder')
+
+  return (
+    <div className="page page-agents">
+      <PageHeader
+        eyebrow="RUNTIME"
+        title="Agent 与自动化"
+        description="管理本机 Provider、后台工作流和每一次可追踪的 Agent 运行。"
+        actions={<Button variant="secondary" icon={<RefreshCw size={16} className={refreshing ? 'spin' : undefined} />} onClick={onRefresh} disabled={refreshing}>重新检测</Button>}
+      />
+      <section className="provider-grid">
+        <ProviderCard name="Codex" icon={<Code2 size={21} />} probe={codex} color="codex" notify={notify} />
+        <ProviderCard name="Qoder" icon={<Bot size={21} />} probe={qoder} color="qoder" notify={notify} />
+      </section>
+
+      <section className="runtime-strip">
+        <div><span className="runtime-icon"><Gauge size={18} /></span><div><strong>任务队列</strong><span>1 运行中 · 2 等待</span></div></div>
+        <div><span className="runtime-icon"><ShieldCheck size={18} /></span><div><strong>权限策略</strong><span>Staging only · dontAsk</span></div></div>
+        <div><span className="runtime-icon"><Activity size={18} /></span><div><strong>后台计数</strong><span>{status?.backgroundTicks ?? '—'} · Main 保持运行</span></div></div>
+        <button type="button" onClick={() => notify('已打开运行历史（Mock）')}>查看运行历史 <ArrowRight size={14} /></button>
+      </section>
+
+      <section className="workflow-section">
+        <div className="panel-heading">
+          <div><p className="panel-kicker">WORKFLOWS</p><h2>自动化</h2></div>
+          <Button variant="secondary" icon={<Plus size={15} />} onClick={() => notify('自定义 Workflow 将在后续版本开放')}>新建 Workflow</Button>
+        </div>
+        <div className="workflow-list">
+          {workflows.map((workflow) => (
+            <article key={workflow.id}>
+              <span className="workflow-play">{workflow.enabled ? <Play size={16} fill="currentColor" /> : <Pause size={16} />}</span>
+              <div className="workflow-copy"><strong>{workflow.name}</strong><span>{workflow.description}</span></div>
+              <div className="workflow-meta"><span>Provider</span><strong>{workflow.provider}</strong></div>
+              <div className="workflow-meta"><span>触发</span><strong>{workflow.schedule}</strong></div>
+              <div className="workflow-meta"><span>最近运行</span><strong>{workflow.lastRun}</strong></div>
+              <Toggle checked={workflow.enabled} label={`${workflow.enabled ? '暂停' : '启用'} ${workflow.name}`} onChange={(enabled) => setWorkflows((current) => current.map((item) => item.id === workflow.id ? { ...item, enabled } : item))} />
+              <IconButton label="Workflow 设置"><MoreHorizontal size={17} /></IconButton>
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function ProviderCard({
+  name,
+  icon,
+  probe,
+  color,
+  notify,
+}: {
+  name: string
+  icon: React.ReactNode
+  probe: PhaseZeroStatus['providers'][number] | undefined
+  color: string
+  notify: Notify
+}): React.JSX.Element {
+  const available = probe?.status === 'available'
+  return (
+    <article className={`provider-card provider-${color}`}>
+      <header><span className="provider-logo">{icon}</span><div><h2>{name}</h2><span><StatusDot status={available ? 'success' : probe ? 'warning' : 'muted'} /> {probe ? providerLabels[probe.status] : '检测中'}</span></div><IconButton label={`${name} 设置`}><Settings2 size={17} /></IconButton></header>
+      <div className="provider-stats">
+        <div><span>版本</span><strong>{probe?.version ?? '—'}</strong></div>
+        <div><span>并发</span><strong>1 个任务</strong></div>
+        <div><span>认证</span><strong>{available ? '本机登录' : '需处理'}</strong></div>
+      </div>
+      <p>{probe?.detail ?? '正在执行本机 capability probe…'}</p>
+      <footer><code>{probe?.selectedExecutable ?? 'Waiting for executable…'}</code><button type="button" onClick={() => notify(`${name} 测试任务已创建`)}>测试运行</button></footer>
+    </article>
+  )
+}
+
+export function SettingsPage({ notify }: { notify: Notify }): React.JSX.Element {
+  const [launchAtLogin, setLaunchAtLogin] = useState(false)
+  const [notifications, setNotifications] = useState(true)
+  const [hideOnClose, setHideOnClose] = useState(true)
+  const [networkTools, setNetworkTools] = useState(false)
+  return (
+    <div className="page page-settings">
+      <PageHeader eyebrow="PREFERENCES" title="设置" description="管理 Vault、应用生命周期、通知以及本机 Agent 的默认行为。" />
+      <div className="settings-layout">
+        <nav className="settings-nav" aria-label="设置分区">
+          <button className="is-active" type="button">通用</button>
+          <button type="button">Vault 与存储</button>
+          <button type="button">通知</button>
+          <button type="button">隐私与网络</button>
+          <button type="button">高级</button>
+        </nav>
+        <div className="settings-content">
+          <SettingsSection title="Knowledge Vault" description="所有正式知识资产都保存在这个普通文件目录中。">
+            <div className="vault-path-card"><span><Folder size={20} /></span><div><strong>Alpha-K Vault</strong><code>/Users/steve/Documents/Alpha-K-Vault</code></div><Button variant="secondary" onClick={() => notify('已打开 Vault 选择器（Mock）')}>更改位置</Button></div>
+            <div className="setting-actions"><button type="button" onClick={() => notify('已在 Finder 中打开 Vault')}><FolderOpen size={16} />在 Finder 中打开</button><button type="button" onClick={() => notify('已创建重建索引任务')}><RefreshCw size={16} />重建索引</button></div>
+          </SettingsSection>
+          <SettingsSection title="应用行为" description="控制 Alpha-K 在 macOS 上如何启动与退出。">
+            <SettingRow title="点击红叉时隐藏窗口" description="Main 进程、同步和 Agent 任务继续运行。"><Toggle checked={hideOnClose} onChange={setHideOnClose} label="点击红叉时隐藏窗口" /></SettingRow>
+            <SettingRow title="登录时启动 Alpha-K" description="开机后自动恢复错过的同步和计划任务。"><Toggle checked={launchAtLogin} onChange={setLaunchAtLogin} label="登录时启动" /></SettingRow>
+            <SettingRow title="桌面通知" description="报告完成或后台任务需要关注时提醒我。"><Toggle checked={notifications} onChange={setNotifications} label="桌面通知" /></SettingRow>
+          </SettingsSection>
+          <SettingsSection title="Agent 默认设置" description="这些设置会成为新 Workflow 的默认值。">
+            <SettingRow title="默认 Provider" description="当前推荐让应用根据 Workflow 自动选择。"><SelectButton>自动选择</SelectButton></SettingRow>
+            <SettingRow title="允许网络工具" description="关闭时，Agent 只能使用应用提供的本地材料。"><Toggle checked={networkTools} onChange={setNetworkTools} label="允许网络工具" /></SettingRow>
+            <SettingRow title="Staging 保留时间" description="成功任务的临时工作区会自动清理。"><SelectButton>保留 7 天</SelectButton></SettingRow>
+          </SettingsSection>
+          <div className="danger-zone"><div><strong>重置本地运行状态</strong><span>清理 Job、Agent 日志和缓存，不会删除 Vault 文件。</span></div><Button variant="danger" onClick={() => notify('这是 Mock，没有删除任何数据')}>清理运行数据</Button></div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function SettingsSection({ title, description, children }: { title: string; description: string; children: React.ReactNode }): React.JSX.Element {
+  return <section className="settings-section"><header><h2>{title}</h2><p>{description}</p></header><div>{children}</div></section>
+}
+
+function SettingRow({ title, description, children }: { title: string; description: string; children: React.ReactNode }): React.JSX.Element {
+  return <div className="setting-row"><div><strong>{title}</strong><span>{description}</span></div>{children}</div>
+}
+
+function sourceGlyph(type: KnowledgeItem['sourceType']): React.JSX.Element {
+  if (type === 'arxiv') return <Atom size={18} />
+  if (type === 'rss') return <Rss size={17} />
+  return <FileText size={17} />
+}
+
+function sourceIcon(kind: SourceItem['kind']): React.JSX.Element {
+  if (kind === 'arXiv') return <Atom size={18} />
+  if (kind === 'RSS') return <Rss size={17} />
+  return <Folder size={18} />
+}
