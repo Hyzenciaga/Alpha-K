@@ -233,7 +233,10 @@ export function App(): React.JSX.Element {
             <span className="brand-mark">K</span>
             <span className="brand-copy"><strong>Alpha-K</strong><small>Local knowledge</small></span>
           </button>
-          <IconButton label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'} onClick={() => setSidebarCollapsed(!sidebarCollapsed)}>
+          <IconButton
+            label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+          >
             {sidebarCollapsed ? <PanelLeft size={17} /> : <ChevronLeft size={17} />}
           </IconButton>
         </div>

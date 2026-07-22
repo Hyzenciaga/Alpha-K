@@ -42,6 +42,12 @@ function createWindow(): BrowserWindow {
     show: false,
     title: 'Alpha-K',
     backgroundColor: '#eeede7',
+    ...(process.platform === 'darwin'
+      ? {
+          titleBarStyle: 'hiddenInset' as const,
+          trafficLightPosition: { x: 16, y: 18 },
+        }
+      : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       sandbox: true,
