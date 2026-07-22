@@ -103,7 +103,10 @@ p {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 236px minmax(0, 1fr);
+  grid-template:
+    "toolbar toolbar" 58px
+    "sidebar content" minmax(0, 1fr)
+    / 236px minmax(0, 1fr);
   width: 100%;
   height: 100vh;
   background: var(--canvas);
@@ -119,7 +122,9 @@ p {
   z-index: 5;
   display: flex;
   min-width: 0;
+  min-height: 0;
   flex-direction: column;
+  grid-area: sidebar;
   color: var(--sidebar-text);
   background: var(--sidebar);
   box-shadow: 1px 0 0 rgb(255 255 255 / 4%);
@@ -349,7 +354,6 @@ p {
 }
 
 .sidebar-collapsed .brand-copy,
-.sidebar-collapsed .sidebar-brand > .icon-button,
 .sidebar-collapsed .nav-label,
 .sidebar-collapsed .nav-text,
 .sidebar-collapsed .sidebar-footer button > span:last-child {
@@ -362,6 +366,7 @@ p {
 }
 
 .sidebar-collapsed .sidebar-brand > button:first-child {
+  display: flex;
   flex: none;
 }
 
@@ -393,10 +398,10 @@ p {
 }
 
 .app-main {
-  display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-rows: 72px minmax(0, 1fr);
+  grid-area: content;
+  overflow: hidden;
 }
 
 .topbar {
@@ -404,8 +409,9 @@ p {
   z-index: 4;
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 0 30px;
+  gap: 18px;
+  grid-area: toolbar;
+  padding: 0 24px 0 86px;
   border-bottom: 1px solid var(--line);
   background: rgb(249 248 243 / 96%);
   -webkit-app-region: drag;
@@ -415,6 +421,18 @@ p {
 .topbar input,
 .global-search {
   -webkit-app-region: no-drag;
+}
+
+.topbar > .icon-button:first-child {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--muted);
+}
+
+.topbar > .icon-button:first-child:hover {
+  color: var(--ink);
+  background: #ebeae4;
 }
 
 .global-search {
@@ -459,6 +477,8 @@ p {
 }
 
 .page-scroll {
+  width: 100%;
+  height: 100%;
   min-width: 0;
   min-height: 0;
   overflow: auto;
@@ -3131,7 +3151,7 @@ p {
 
   .topbar {
     gap: 14px;
-    padding: 0 22px;
+    padding-right: 22px;
   }
 
   .topbar-status small {
@@ -3157,53 +3177,8 @@ p {
 }
 
 @media (max-width: 980px) {
-  .app-shell,
   .app-shell:not(.sidebar-collapsed) {
-    grid-template-columns: 76px minmax(0, 1fr);
-  }
-
-  .brand-copy,
-  .sidebar-brand > .icon-button,
-  .nav-label,
-  .nav-text,
-  .sidebar-footer button > span:last-child {
-    display: none;
-  }
-
-  .sidebar-brand {
-    justify-content: center;
-    padding: 0;
-  }
-
-  .sidebar-brand > button:first-child {
-    flex: none;
-  }
-
-  .sidebar-nav {
-    padding: 18px 11px;
-  }
-
-  .nav-item {
-    justify-content: center;
-    padding: 0;
-  }
-
-  .nav-badge {
-    position: absolute;
-    top: 4px;
-    right: 5px;
-    min-width: 16px;
-    height: 16px;
-    font-size: 8px;
-  }
-
-  .nav-item.is-active::before {
-    left: -11px;
-  }
-
-  .sidebar-footer > button {
-    justify-content: center;
-    padding: 0;
+    grid-template-columns: 190px minmax(0, 1fr);
   }
 
   .metric-grid {
