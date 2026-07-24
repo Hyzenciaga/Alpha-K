@@ -53,10 +53,12 @@ export function SourcesPage({
   client,
   vaultId,
   notify,
+  onBack,
 }: {
   client: PhaseTwoRendererClient
   vaultId: string | null
   notify: Notify
+  onBack?: () => void
 }): React.JSX.Element {
   const model = useMemo(() => (vaultId ? new SourcesViewModel(client, vaultId) : null), [client, vaultId])
   const [view, setView] = useState<SourcesViewState>(EMPTY_SOURCES_STATE)
@@ -200,6 +202,8 @@ export function SourcesPage({
         eyebrow="INGESTION · PHASE 2"
         title="订阅源"
         description="管理持久化来源、只读预览和手动同步；当前执行批次仅接通 RSS。"
+        backLabel="返回设置"
+        onBack={onBack}
         actions={<Button icon={<Plus size={16} />} disabled={!vaultId} onClick={openCreate}>新建 RSS 来源</Button>}
       />
 

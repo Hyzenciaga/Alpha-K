@@ -258,9 +258,8 @@ export function latestSyncRunsBySource(syncRuns: SyncRun[]): Map<string, SyncRun
 }
 
 export const INBOX_PHASE_FOUR_ACTIONS = [
-  { id: 'ignore', label: '忽略 · Phase 4', disabled: true },
-  { id: 'reanalyze', label: '重新分析 · Phase 4', disabled: true },
-  { id: 'accept', label: '确认收录 · Phase 4', disabled: true },
+  { id: 'accept', label: '入库 · 尚未接入', disabled: true },
+  { id: 'dislike', label: '不喜欢 · 尚未接入', disabled: true },
 ] as const
 
 function errorMessage(error: unknown): string {

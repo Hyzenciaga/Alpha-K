@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Bell,
   Bot,
+  BrainCircuit,
+  BriefcaseBusiness,
+  ChevronRight,
+  Cloud,
+  Compass,
   FileText,
-  Home,
   Inbox,
   Library,
   MessageSquareText,
   PanelLeft,
-  Plus,
   Rss,
   Settings,
   Sparkles,
@@ -18,10 +21,13 @@ import type { EnqueueJobInput, Job } from '@shared/domain/job'
 import type { IpcError } from '@shared/ipc/phase-one-contract'
 import type { VaultConnection } from '@shared/domain/vault'
 import type { CloudStatus } from '@shared/domain/cloud-sync'
-import { Button, IconButton, Modal, SearchField, SegmentedControl, Toast } from './components'
+import { CapturePopover } from './CapturePopover'
+import { IconButton, SearchField, Toast } from './components'
 import { InboxPage } from './InboxPage'
 import type { PageId } from './mock-data'
+import alphaKLogo from './assets/alpha-k-logo.png'
 import { getProductionPhaseTwoClient } from './phase-two-client'
+import { ResearchWorkspace, type LearningFieldId } from './ResearchWorkspace'
 import { SourcesPage } from './SourcesPage'
 import {
   AgentsPage,
@@ -29,33 +35,37 @@ import {
   QueryPage,
   ReportsPage,
   SettingsPage,
-  TodayPage,
 } from './pages'
 
-const primaryNavigation: Array<{ id: PageId; label: string; icon: React.ReactNode; badge?: string }> = [
-  { id: 'today', label: '今天', icon: <Home size={18} /> },
-  { id: 'inbox', label: '收件箱', icon: <Inbox size={18} /> },
-  { id: 'library', label: '知识库', icon: <Library size={18} /> },
-  { id: 'sources', label: '订阅源', icon: <Rss size={18} /> },
-  { id: 'query', label: '问答', icon: <MessageSquareText size={18} /> },
-  { id: 'reports', label: '报告', icon: <FileText size={18} /> },
+const learningFields: Array<{ id: LearningFieldId; label: string; icon: React.ReactNode; tone: string }> = [
+  { id: 'ai-systems', label: 'AI 系统', icon: <BrainCircuit size={16} />, tone: 'blue' },
+  { id: 'product-design', label: '产品与交互', icon: <Sparkles size={16} />, tone: 'violet' },
+  { id: 'business', label: '经济与商业', icon: <BriefcaseBusiness size={16} />, tone: 'amber' },
+  { id: 'knowledge-system', label: '个人知识系统', icon: <Compass size={16} />, tone: 'slate' },
 ]
 
-const utilityNavigation: Array<{ id: PageId; label: string; icon: React.ReactNode }> = [
-  { id: 'agents', label: 'Agent', icon: <Bot size={18} /> },
-  { id: 'settings', label: '设置', icon: <Settings size={18} /> },
-]
+const hasUpdate = false
+
+const pageLabels: Record<PageId, string> = {
+  today: '研究空间',
+  inbox: '收件箱',
+  library: '全部知识',
+  sources: '信息源订阅',
+  query: '问 Alpha-K',
+  reports: '研究报告',
+  agents: 'Agent 与任务',
+  settings: '设置与连接',
+}
 
 export function App(): React.JSX.Element {
   const phaseTwoClient = getProductionPhaseTwoClient()
-  const [activePage, setActivePage] = useState<PageId>('today')
   const [status, setStatus] = useState<PhaseZeroStatus | null>(null)
   const [refreshing, setRefreshing] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [search, setSearch] = useState('')
   const [toast, setToast] = useState<string | null>(null)
   const [captureOpen, setCaptureOpen] = useState(false)
-  const [captureKind, setCaptureKind] = useState<'note' | 'link'>('note')
+  const [captureKind, setCaptureKind] = useState<'note' | 'link'>('link')
   const [captureTitle, setCaptureTitle] = useState('')
   const [captureContent, setCaptureContent] = useState('')
   const [vaultConnection, setVaultConnection] = useState<VaultConnection | null>(null)
@@ -64,6 +74,10 @@ export function App(): React.JSX.Element {
   const [vaultBusy, setVaultBusy] = useState(false)
   const [cloudStatus, setCloudStatus] = useState<CloudStatus | null>(null)
   const [cloudBusy, setCloudBusy] = useState(false)
+  const [activePage, setActivePage] = useState<PageId>('today')
+  const [activeField, setActiveField] = useState<LearningFieldId>('ai-systems')
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
+  const settingsMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     void window.alphaK.getPhaseZeroStatus().then(setStatus)
@@ -107,9 +121,13 @@ export function App(): React.JSX.Element {
 
   useEffect(() => {
     function handleShortcut(event: KeyboardEvent): void {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'k') {
         event.preventDefault()
-        document.querySelector<HTMLInputElement>('.global-search input')?.focus()
+        setCaptureKind('link')
+        setCaptureOpen(true)
+      } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        document.querySelector<HTMLInputElement>('.sidebar-search input')?.focus()
       }
       if (event.key === 'Escape') setCaptureOpen(false)
     }
@@ -117,8 +135,27 @@ export function App(): React.JSX.Element {
     return () => window.removeEventListener('keydown', handleShortcut)
   }, [])
 
+  useEffect(() => {
+    if (!settingsMenuOpen) return undefined
+    function closeSettingsMenu(event: PointerEvent): void {
+      if (!settingsMenuRef.current?.contains(event.target as Node)) setSettingsMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', closeSettingsMenu)
+    return () => document.removeEventListener('pointerdown', closeSettingsMenu)
+  }, [settingsMenuOpen])
+
   function navigate(page: PageId): void {
     setActivePage(page)
+    setSettingsMenuOpen(false)
+    resetPageScroll()
+  }
+
+  function openField(field: LearningFieldId): void {
+    setActiveField(field)
+    navigate('today')
+  }
+
+  function resetPageScroll(): void {
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     document.querySelector('.page-scroll')?.scrollTo({ top: 0, behavior: reducedMotion ? 'auto' : 'smooth' })
   }
@@ -261,67 +298,165 @@ export function App(): React.JSX.Element {
     setCaptureOpen(false)
     setCaptureTitle('')
     setCaptureContent('')
-    notify(captureKind === 'note' ? '笔记已保存到收件箱' : '链接已加入待分析队列')
+    notify(captureKind === 'note'
+      ? '想法已加入本次会话；正式持久化尚未接入'
+      : '链接已加入本次会话；正式持久化尚未接入')
   }
 
   return (
-    <div className={`app-shell${sidebarCollapsed ? ' sidebar-collapsed' : ''}`}>
+    <div className={`app-shell${sidebarCollapsed ? ' sidebar-hidden' : ''}`}>
       <header className="topbar">
-        <IconButton
-          label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
-          onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-        >
-          <PanelLeft size={18} />
-        </IconButton>
-        <form className="global-search" onSubmit={submitGlobalSearch}>
-          <SearchField value={search} onChange={setSearch} placeholder="搜索知识、标签或来源…" />
-        </form>
+        <div className="topbar-leading">
+          <IconButton
+            label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
+            onClick={() => {
+              setSettingsMenuOpen(false)
+              setSidebarCollapsed((collapsed) => !collapsed)
+            }}
+          >
+            <PanelLeft size={18} />
+          </IconButton>
+        </div>
+        <span className="topbar-page-label">{pageLabels[activePage]}</span>
+        <span className="topbar-drag-space" />
         <div className="topbar-status" aria-label="应用状态">
-          <span><i />本地运行中</span>
-          <small>{phaseOneLoading ? 'Phase 1 正在连接' : `${jobs.length} Jobs · 后台 ${status?.backgroundTicks ?? '—'}`}</small>
+          <span><Cloud size={15} />{cloudStatus?.auth === 'signed_in' ? (cloudStatus.sync === 'syncing' ? '同步中' : '已同步') : '仅本地'}</span>
+          <small>{phaseOneLoading ? '正在连接' : `${jobs.length} 个任务`}</small>
         </div>
         <div className="topbar-actions">
           <IconButton label="通知" onClick={() => notify('没有需要处理的新通知')}><Bell size={18} /></IconButton>
-          <Button icon={<Plus size={16} />} onClick={() => setCaptureOpen(true)}>快速收集</Button>
         </div>
       </header>
 
-      <aside className="sidebar">
-        <div className="sidebar-brand">
-          <button type="button" onClick={() => navigate('today')} aria-label="前往今天">
-            <span className="brand-mark">K</span>
-            <span className="brand-copy"><strong>Alpha-K</strong><small>Local knowledge</small></span>
+      <aside className="sidebar" aria-hidden={sidebarCollapsed} inert={sidebarCollapsed ? true : undefined}>
+        <div className="sidebar-intro">
+          <button type="button" onClick={() => navigate('today')} aria-label="前往今日简报">
+            <span className="brand-mark"><img src={alphaKLogo} alt="" /></span>
+            <span className="brand-copy"><strong>Alpha-K</strong><small>你的本地学习空间</small></span>
           </button>
         </div>
 
+        <div className="sidebar-tools">
+          <CapturePopover
+            open={captureOpen}
+            kind={captureKind}
+            title={captureTitle}
+            content={captureContent}
+            placement="right"
+            onOpenChange={setCaptureOpen}
+            onKindChange={setCaptureKind}
+            onTitleChange={setCaptureTitle}
+            onContentChange={setCaptureContent}
+            onSubmit={saveCapture}
+          />
+          <form className="sidebar-search" onSubmit={submitGlobalSearch}>
+            <SearchField value={search} onChange={setSearch} placeholder="搜索知识…" compact />
+          </form>
+        </div>
+
         <nav className="sidebar-nav" aria-label="主要导航">
-          <span className="nav-label">工作区</span>
-          {primaryNavigation.map((item) => (
-            <NavItem key={item.id} item={item} active={activePage === item.id} onSelect={navigate} />
+          <NavItem
+            item={{ id: 'query', label: '问 Alpha-K', icon: <MessageSquareText size={18} /> }}
+            active={activePage === 'query'}
+            onSelect={navigate}
+            shortcut="⌘ J"
+          />
+          <NavItem
+            item={{ id: 'inbox', label: '收件箱', icon: <Inbox size={18} />, badge: '6' }}
+            active={activePage === 'inbox'}
+            onSelect={navigate}
+          />
+
+          <span className="nav-label nav-label-spaced">学习领域</span>
+          {learningFields.map((field) => (
+            <button
+              className={`nav-item field-nav-item${activePage === 'today' && activeField === field.id ? ' is-active' : ''}`}
+              type="button"
+              key={field.id}
+              aria-current={activePage === 'today' && activeField === field.id ? 'page' : undefined}
+              onClick={() => openField(field.id)}
+            >
+              <span className={`field-nav-icon tone-${field.tone}`}>{field.icon}</span>
+              <span className="nav-text">{field.label}</span>
+              {activePage === 'today' && activeField === field.id && <i className="field-active-dot" />}
+            </button>
           ))}
-          <span className="nav-label utility-label">系统</span>
-          {utilityNavigation.map((item) => (
-            <NavItem key={item.id} item={item} active={activePage === item.id} onSelect={navigate} />
-          ))}
+
+          <div className="nav-quiet-actions">
+            <NavItem
+              item={{ id: 'library', label: '全部知识', icon: <Library size={18} /> }}
+              active={activePage === 'library'}
+              onSelect={navigate}
+            />
+            <NavItem
+              item={{ id: 'reports', label: '研究报告', icon: <FileText size={18} /> }}
+              active={activePage === 'reports'}
+              onSelect={navigate}
+            />
+          </div>
         </nav>
 
         <div className="sidebar-footer">
-          <button type="button" onClick={() => navigate('settings')}>
-            <span className="vault-status"><i className={vaultConnection?.state === 'ready' ? undefined : 'is-warning'} /><Sparkles size={16} /></span>
-            <span>
-              <strong>{vaultConnection?.state === 'ready' ? 'Vault 已就绪' : vaultConnection ? 'Vault 需要设置' : '正在读取 Vault'}</strong>
-              <small>{vaultConnection?.vault?.path ?? '选择本地目录以初始化或恢复'}</small>
+          {hasUpdate && (
+            <button className="sidebar-update" type="button" onClick={() => notify('更新将在下载完成后显示')}>
+              <span>有新版本可用</span>
+            </button>
+          )}
+          <button className="account-button" type="button" onClick={() => navigate('settings')}>
+            <span className="account-avatar">
+              {cloudStatus?.user?.avatarUrl ? <img src={cloudStatus.user.avatarUrl} alt="" /> : (cloudStatus?.user?.displayName?.slice(0, 1) ?? 'K')}
+              <i className={cloudStatus?.auth === 'signed_in' ? 'is-online' : undefined} />
+            </span>
+            <span className="account-copy">
+              <strong>{cloudStatus?.user?.displayName ?? cloudStatus?.user?.email ?? '本地使用'}</strong>
+              <small>{cloudStatus?.auth === 'signed_in' ? '账户与状态同步已连接' : '未登录 · 本地功能可用'}</small>
             </span>
           </button>
+          <div className="settings-menu-shell" ref={settingsMenuRef}>
+            <IconButton
+              label={settingsMenuOpen ? '关闭设置菜单' : '打开设置菜单'}
+              active={settingsMenuOpen || activePage === 'settings'}
+              onClick={() => setSettingsMenuOpen((open) => !open)}
+            >
+              <Settings size={18} />
+            </IconButton>
+            {settingsMenuOpen && (
+              <div className="settings-popover" role="menu" aria-label="设置菜单">
+                <header><strong>设置</strong><span>连接与本地运行</span></header>
+                <button type="button" role="menuitem" onClick={() => navigate('settings')}>
+                  <span><Settings size={16} /></span><div><strong>设置与连接</strong><small>账户、Vault 与应用行为</small></div><ChevronRight size={14} />
+                </button>
+                <button type="button" role="menuitem" onClick={() => navigate('sources')}>
+                  <span><Rss size={16} /></span><div><strong>信息源订阅</strong><small>RSS 与同步状态</small></div><ChevronRight size={14} />
+                </button>
+                <button type="button" role="menuitem" onClick={() => navigate('agents')}>
+                  <span><Bot size={16} /></span><div><strong>Agent 与任务</strong><small>Codex、Qoder 与 Job</small></div><ChevronRight size={14} />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </aside>
 
       <main className="app-main">
         <div className="page-scroll">
-          {activePage === 'today' && <TodayPage onNavigate={navigate} jobs={jobs} onCreateJob={createJob} notify={notify} />}
+          {activePage === 'today' && (
+            <ResearchWorkspace
+              field={activeField}
+              onNavigateInbox={() => navigate('inbox')}
+              onNotify={notify}
+            />
+          )}
           {activePage === 'inbox' && <InboxPage client={phaseTwoClient} vaultId={vaultConnection?.vault?.id ?? null} />}
-          {activePage === 'library' && <LibraryPage notify={notify} />}
-          {activePage === 'sources' && <SourcesPage client={phaseTwoClient} vaultId={vaultConnection?.vault?.id ?? null} notify={notify} />}
+          {activePage === 'library' && <LibraryPage notify={notify} search={search} />}
+          {activePage === 'sources' && (
+            <SourcesPage
+              client={phaseTwoClient}
+              vaultId={vaultConnection?.vault?.id ?? null}
+              notify={notify}
+              onBack={() => navigate('settings')}
+            />
+          )}
           {activePage === 'query' && <QueryPage notify={notify} />}
           {activePage === 'reports' && <ReportsPage notify={notify} />}
           {activePage === 'agents' && (
@@ -334,6 +469,7 @@ export function App(): React.JSX.Element {
               onCancelJob={cancelJob}
               onRetryJob={retryJob}
               notify={notify}
+              onBack={() => navigate('settings')}
             />
           )}
           {activePage === 'settings' && (
@@ -346,44 +482,13 @@ export function App(): React.JSX.Element {
               onRebuildVaultIndex={rebuildVaultIndex}
               onSignInWithGitHub={signInWithGitHub}
               onSignOutCloud={signOutCloud}
+              onNavigate={navigate}
+              providerStatus={status}
               notify={notify}
             />
           )}
         </div>
       </main>
-
-      {captureOpen && (
-        <Modal
-          title="快速收集"
-          description="先放进收件箱，稍后再让 Agent 整理。"
-          onClose={() => setCaptureOpen(false)}
-          footer={
-            <>
-              <Button variant="ghost" onClick={() => setCaptureOpen(false)}>取消</Button>
-              <Button onClick={saveCapture}>保存到收件箱</Button>
-            </>
-          }
-        >
-          <SegmentedControl
-            label="收集类型"
-            value={captureKind}
-            onChange={setCaptureKind}
-            options={[{ value: 'note', label: '随手记' }, { value: 'link', label: '网页链接' }]}
-          />
-          <label className="field-label">
-            <span>{captureKind === 'note' ? '标题' : '网页标题（可选）'}</span>
-            <input value={captureTitle} onChange={(event) => setCaptureTitle(event.target.value)} placeholder="给它一个容易找回的名字" autoFocus />
-          </label>
-          <label className="field-label">
-            <span>{captureKind === 'note' ? '内容' : 'URL'}</span>
-            {captureKind === 'note' ? (
-              <textarea value={captureContent} onChange={(event) => setCaptureContent(event.target.value)} placeholder="写下想法、摘录或待研究的问题…" />
-            ) : (
-              <input value={captureContent} onChange={(event) => setCaptureContent(event.target.value)} placeholder="https://" inputMode="url" />
-            )}
-          </label>
-        </Modal>
-      )}
 
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
     </div>
@@ -408,10 +513,12 @@ function NavItem({
   item,
   active,
   onSelect,
+  shortcut,
 }: {
   item: { id: PageId; label: string; icon: React.ReactNode; badge?: string }
   active: boolean
   onSelect: (page: PageId) => void
+  shortcut?: string
 }): React.JSX.Element {
   return (
     <button
@@ -424,6 +531,7 @@ function NavItem({
       <span className="nav-icon">{item.icon}</span>
       <span className="nav-text">{item.label}</span>
       {item.badge && <span className="nav-badge">{item.badge}</span>}
+      {shortcut && <kbd>{shortcut}</kbd>}
     </button>
   )
 }

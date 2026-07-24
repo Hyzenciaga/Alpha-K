@@ -55,7 +55,6 @@ import {
   IconButton,
   PageHeader,
   ProgressRing,
-  SearchField,
   SegmentedControl,
   SelectButton,
   StatusDot,
@@ -248,15 +247,16 @@ function MetricCard({
   )
 }
 
-export function LibraryPage({ notify }: { notify: Notify }): React.JSX.Element {
-  const [search, setSearch] = useState('')
+export function LibraryPage({ notify, search = '' }: { notify: Notify; search?: string }): React.JSX.Element {
   const [view, setView] = useState<'grid' | 'list'>('grid')
+  const [scope, setScope] = useState<'all' | 'favorite' | 'later'>('all')
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
   const labels = ['Local-first', 'Agent Memory', 'RAG', 'SQLite', 'Reliability', 'Product Design']
-  const visibleItems = libraryItems.filter((item) => {
+  const visibleItems = libraryItems.filter((item, index) => {
     const matchesSearch = `${item.title} ${item.summary} ${item.labels.join(' ')}`.toLowerCase().includes(search.toLowerCase())
     const matchesLabels = selectedLabels.length === 0 || selectedLabels.every((label) => item.labels.includes(label))
-    return matchesSearch && matchesLabels
+    const matchesScope = scope === 'all' || (scope === 'favorite' ? index < 2 : index >= 2 && index < 4)
+    return matchesSearch && matchesLabels && matchesScope
   })
 
   function toggleLabel(label: string): void {
@@ -272,47 +272,36 @@ export function LibraryPage({ notify }: { notify: Notify }): React.JSX.Element {
         actions={<Button icon={<Plus size={16} />} onClick={() => notify('已打开导入文件选择器（Mock）')}>导入文件</Button>}
       />
       <MockNotice scope="知识库内容" />
-      <div className="library-layout">
-        <aside className="filter-rail">
-          <div className="filter-section">
-            <h3>范围</h3>
-            <button className="is-active" type="button"><Library size={16} /> 全部内容 <span>128</span></button>
-            <button type="button"><Heart size={16} /> 收藏 <span>23</span></button>
-            <button type="button"><Clock3 size={16} /> 稍后阅读 <span>11</span></button>
+      <section className="library-content library-content-horizontal">
+        <div className="section-command-bar library-command-bar">
+          <div className="horizontal-tabs" role="tablist" aria-label="知识范围">
+            <button className={scope === 'all' ? 'is-active' : undefined} type="button" role="tab" aria-selected={scope === 'all'} onClick={() => setScope('all')}><Library size={15} />全部知识<span>128</span></button>
+            <button className={scope === 'favorite' ? 'is-active' : undefined} type="button" role="tab" aria-selected={scope === 'favorite'} onClick={() => setScope('favorite')}><Heart size={15} />收藏<span>23</span></button>
+            <button className={scope === 'later' ? 'is-active' : undefined} type="button" role="tab" aria-selected={scope === 'later'} onClick={() => setScope('later')}><Clock3 size={15} />稍后阅读<span>11</span></button>
           </div>
-          <div className="filter-section">
-            <div className="filter-title"><h3>标签</h3><button type="button">清除</button></div>
-            {labels.map((label) => (
-              <label className="check-row" key={label}>
-                <input type="checkbox" checked={selectedLabels.includes(label)} onChange={() => toggleLabel(label)} />
-                <span className="custom-check">{selectedLabels.includes(label) && <Check size={12} />}</span>
-                <span>{label}</span>
-              </label>
-            ))}
-          </div>
-          <div className="collection-callout">
-            <FolderOpen size={19} />
-            <strong>3 个专题</strong>
-            <p>把相关资料组织成持续生长的研究方向。</p>
-            <button type="button">查看专题</button>
-          </div>
-        </aside>
-
-        <section className="library-content">
-          <div className="toolbar library-toolbar">
-            <SearchField value={search} onChange={setSearch} placeholder="搜索标题、摘要、作者或标签" />
+          <div className="command-actions">
+            <button className="topic-shortcut" type="button" onClick={() => notify('已打开专题视图（Mock）')}><FolderOpen size={15} />3 个专题</button>
             <SelectButton>最近更新</SelectButton>
             <div className="view-toggle">
               <IconButton label="卡片视图" active={view === 'grid'} onClick={() => setView('grid')}><Grid2X2 size={17} /></IconButton>
               <IconButton label="列表视图" active={view === 'list'} onClick={() => setView('list')}><List size={18} /></IconButton>
             </div>
           </div>
-          <div className="result-summary"><span>显示 {visibleItems.length} 条内容</span><span>Vault 最后更新于 2 分钟前</span></div>
-          <div className={`library-items is-${view}`}>
-            {visibleItems.map((item) => <LibraryCard key={item.id} item={item} view={view} notify={notify} />)}
-          </div>
-        </section>
-      </div>
+        </div>
+        <div className="library-label-bar" aria-label="标签筛选">
+          <span>标签</span>
+          {labels.map((label) => (
+            <button className={selectedLabels.includes(label) ? 'is-active' : undefined} type="button" key={label} aria-pressed={selectedLabels.includes(label)} onClick={() => toggleLabel(label)}>
+              {selectedLabels.includes(label) && <Check size={12} />}{label}
+            </button>
+          ))}
+          {selectedLabels.length > 0 && <button className="clear-labels" type="button" onClick={() => setSelectedLabels([])}>清除</button>}
+        </div>
+        <div className="result-summary"><span>{scope === 'all' ? '全部知识' : scope === 'favorite' ? '收藏' : '稍后阅读'} · 显示 {visibleItems.length} 条内容</span><span>Vault 最后更新于 2 分钟前</span></div>
+        <div className={`library-items is-${view}`}>
+          {visibleItems.map((item) => <LibraryCard key={item.id} item={item} view={view} notify={notify} />)}
+        </div>
+      </section>
     </div>
   )
 }
@@ -464,17 +453,19 @@ export function ReportsPage({ notify }: { notify: Notify }): React.JSX.Element {
         actions={<Button icon={<Sparkles size={16} />} onClick={() => notify('已创建本周报告生成任务')}>生成本周报告</Button>}
       />
       <MockNotice scope="报告" />
-      <div className="reports-layout">
-        <aside className="report-list">
+      <div className="reports-layout reports-layout-horizontal">
+        <section className="report-list report-strip" aria-label="报告列表">
           <div className="report-list-heading"><span>周报</span><IconButton label="报告筛选"><Filter size={16} /></IconButton></div>
-          {reports.map((report) => (
-            <button className={report.id === selectedId ? 'is-active' : undefined} type="button" key={report.id} onClick={() => setSelectedId(report.id)}>
-              <span className="report-file-icon"><FileText size={18} /></span>
-              <div><strong>{report.title}</strong><span>{report.period}</span><small>{report.items} 条引用 · {report.updatedAt}</small></div>
-              {report.status === '草稿' && <Tag tone="warning">草稿</Tag>}
-            </button>
-          ))}
-        </aside>
+          <div className="report-strip-items">
+            {reports.map((report) => (
+              <button className={report.id === selectedId ? 'is-active' : undefined} type="button" key={report.id} onClick={() => setSelectedId(report.id)}>
+                <span className="report-file-icon"><FileText size={18} /></span>
+                <div><strong>{report.title}</strong><span>{report.period}</span><small>{report.items} 条引用 · {report.updatedAt}</small></div>
+                {report.status === '草稿' && <Tag tone="warning">草稿</Tag>}
+              </button>
+            ))}
+          </div>
+        </section>
 
         <article className="report-preview">
           <header>
@@ -521,6 +512,7 @@ export function AgentsPage({
   onCancelJob,
   onRetryJob,
   notify,
+  onBack,
 }: {
   status: PhaseZeroStatus | null
   jobs: Job[]
@@ -530,6 +522,7 @@ export function AgentsPage({
   onCancelJob: JobAction
   onRetryJob: JobAction
   notify: Notify
+  onBack?: () => void
 }): React.JSX.Element {
   const [workflows, setWorkflows] = useState([
     { id: 'preannotate', name: '新内容预标注', description: '提取摘要、标签、重要度和置信度', provider: 'Codex', schedule: '新内容到达时', enabled: true, lastRun: '3 分钟前' },
@@ -547,6 +540,8 @@ export function AgentsPage({
         eyebrow="RUNTIME"
         title="Agent 与自动化"
         description="管理本机 Provider、后台工作流和每一次可追踪的 Agent 运行。"
+        backLabel="返回设置"
+        onBack={onBack}
         actions={<Button variant="secondary" icon={<RefreshCw size={16} className={refreshing ? 'spin' : undefined} />} onClick={onRefresh} disabled={refreshing}>重新检测</Button>}
       />
       <section className="provider-grid">
@@ -719,6 +714,8 @@ export function SettingsPage({
   onRebuildVaultIndex,
   onSignInWithGitHub,
   onSignOutCloud,
+  onNavigate,
+  providerStatus,
   notify,
 }: {
   vaultConnection: VaultConnection | null
@@ -729,6 +726,8 @@ export function SettingsPage({
   onRebuildVaultIndex: () => Promise<void>
   onSignInWithGitHub: () => Promise<void>
   onSignOutCloud: () => Promise<void>
+  onNavigate: Navigate
+  providerStatus: PhaseZeroStatus | null
   notify: Notify
 }): React.JSX.Element {
   const [launchAtLogin, setLaunchAtLogin] = useState(false)
@@ -758,18 +757,23 @@ export function SettingsPage({
           : cloudStatus.auth === 'error'
             ? '需要处理'
             : '未登录'
+  const availableProviders = providerStatus?.providers.filter((provider) => provider.status === 'available').length ?? 0
   return (
     <div className="page page-settings">
-      <PageHeader eyebrow="PREFERENCES" title="设置" description="管理 Vault、应用生命周期、通知以及本机 Agent 的默认行为。" />
-      <div className="settings-layout">
-        <nav className="settings-nav" aria-label="设置分区">
-          <button className="is-active" type="button">通用</button>
-          <button type="button">Vault 与存储</button>
-          <button type="button">通知</button>
-          <button type="button">隐私与网络</button>
-          <button type="button">高级</button>
-        </nav>
-        <div className="settings-content">
+      <PageHeader eyebrow="SETTINGS" title="设置与连接" description="账户、本地 Vault、信息来源和 Agent 都从这里管理。" />
+      <div className="settings-content settings-overview-content">
+          <section className="settings-jump-grid" aria-label="连接设置">
+            <button type="button" onClick={() => onNavigate('sources')}>
+              <span className="settings-jump-icon source"><Rss size={20} /></span>
+              <span><strong>信息源订阅</strong><small>管理 RSS，并查看每次同步状态</small></span>
+              <ChevronRight size={17} />
+            </button>
+            <button type="button" onClick={() => onNavigate('agents')}>
+              <span className="settings-jump-icon agent"><Bot size={20} /></span>
+              <span><strong>Agent 与任务</strong><small>{availableProviders}/2 个 Provider 可用 · Codex / Qoder</small></span>
+              <ChevronRight size={17} />
+            </button>
+          </section>
           <SettingsSection title="账户与状态同步" description="用 GitHub 登录，在多个 Alpha-K 客户端之间同步阅读与处理状态。">
             <div className="vault-path-card cloud-account-card">
               <span>{cloudSignedIn ? <GitFork size={20} /> : <Cloud size={20} />}</span>
@@ -828,7 +832,6 @@ export function SettingsPage({
             <SettingRow title="Staging 保留时间" description="成功任务的临时工作区会自动清理。"><SelectButton>保留 7 天</SelectButton></SettingRow>
           </SettingsSection>
           <div className="danger-zone"><div><strong>重置本地运行状态</strong><span>清理 Job、Agent 日志和缓存，不会删除 Vault 文件。</span></div><Button variant="danger" onClick={() => notify('这是 Mock，没有删除任何数据')}>清理运行数据</Button></div>
-        </div>
       </div>
     </div>
   )

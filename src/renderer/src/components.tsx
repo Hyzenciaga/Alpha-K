@@ -1,20 +1,29 @@
 import type { ReactNode } from 'react'
-import { Check, ChevronDown, Search, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, Search, X } from 'lucide-react'
 
 export function PageHeader({
   eyebrow,
   title,
   description,
   actions,
+  backLabel,
+  onBack,
 }: {
   eyebrow?: string
   title: string
   description: string
   actions?: ReactNode
+  backLabel?: string
+  onBack?: () => void
 }): React.JSX.Element {
   return (
     <header className="page-header">
       <div className="page-header-copy">
+        {onBack && (
+          <button className="page-back-button" type="button" onClick={onBack}>
+            <ArrowLeft size={14} /> {backLabel ?? '返回'}
+          </button>
+        )}
         {eyebrow && <p className="page-eyebrow">{eyebrow}</p>}
         <h1>{title}</h1>
         <p>{description}</p>
@@ -52,11 +61,13 @@ export function IconButton({
   children,
   onClick,
   active = false,
+  disabled = false,
 }: {
   label: string
   children: ReactNode
   onClick?: () => void
   active?: boolean
+  disabled?: boolean
 }): React.JSX.Element {
   return (
     <button
@@ -64,6 +75,7 @@ export function IconButton({
       type="button"
       aria-label={label}
       title={label}
+      disabled={disabled}
       onClick={onClick}
     >
       {children}
