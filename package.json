@@ -1,6 +1,6 @@
 {
   "name": "alpha-k",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "author": "Alpha-K Contributors",
