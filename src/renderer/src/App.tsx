@@ -7,12 +7,14 @@ import {
   ChevronRight,
   Cloud,
   Compass,
+  Download,
   FileText,
   Inbox,
   Library,
   MessageSquareText,
   PanelLeft,
   Rss,
+  RefreshCw,
   Settings,
   Sparkles,
 } from 'lucide-react'
@@ -21,6 +23,7 @@ import type { EnqueueJobInput, Job } from '@shared/domain/job'
 import type { IpcError } from '@shared/ipc/phase-one-contract'
 import type { VaultConnection } from '@shared/domain/vault'
 import type { CloudStatus } from '@shared/domain/cloud-sync'
+import type { AppUpdateStatus } from '@shared/ipc/update-contract'
 import { CapturePopover } from './CapturePopover'
 import { IconButton, SearchField, Toast } from './components'
 import { InboxPage } from './InboxPage'
@@ -43,8 +46,6 @@ const learningFields: Array<{ id: LearningFieldId; label: string; icon: React.Re
   { id: 'business', label: '经济与商业', icon: <BriefcaseBusiness size={16} />, tone: 'amber' },
   { id: 'knowledge-system', label: '个人知识系统', icon: <Compass size={16} />, tone: 'slate' },
 ]
-
-const hasUpdate = false
 
 const pageLabels: Record<PageId, string> = {
   today: '研究空间',
@@ -74,6 +75,7 @@ export function App(): React.JSX.Element {
   const [vaultBusy, setVaultBusy] = useState(false)
   const [cloudStatus, setCloudStatus] = useState<CloudStatus | null>(null)
   const [cloudBusy, setCloudBusy] = useState(false)
+  const [updateStatus, setUpdateStatus] = useState<AppUpdateStatus | null>(null)
   const [activePage, setActivePage] = useState<PageId>('today')
   const [activeField, setActiveField] = useState<LearningFieldId>('ai-systems')
   const [settingsMenuOpen, setSettingsMenuOpen] = useState(false)
@@ -82,6 +84,24 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     void window.alphaK.getPhaseZeroStatus().then(setStatus)
     return window.alphaK.onPhaseZeroStatus(setStatus)
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+    void window.alphaK.getUpdateStatus()
+      .then((nextStatus) => {
+        if (mounted) setUpdateStatus(nextStatus)
+      })
+      .catch((error: unknown) => {
+        if (mounted) console.error('更新状态读取失败', error)
+      })
+    const unsubscribe = window.alphaK.onUpdateStatus((nextStatus) => {
+      if (mounted) setUpdateStatus(nextStatus)
+    })
+    return () => {
+      mounted = false
+      unsubscribe()
+    }
   }, [])
 
   useEffect(() => {
@@ -286,6 +306,21 @@ export function App(): React.JSX.Element {
     }
   }
 
+  async function handleUpdateAction(): Promise<void> {
+    if (!updateStatus) return
+    try {
+      const nextStatus = updateStatus.phase === 'ready'
+        ? await window.alphaK.restartAndInstallUpdate()
+        : await window.alphaK.downloadUpdate()
+      setUpdateStatus(nextStatus)
+      if (nextStatus.phase === 'error') {
+        notify(`应用更新失败：${nextStatus.error ?? '未知错误'}`)
+      }
+    } catch (error) {
+      notify(`应用更新失败：${errorMessage(error)}`)
+    }
+  }
+
   function submitGlobalSearch(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault()
     if (!search.trim()) return
@@ -319,8 +354,23 @@ export function App(): React.JSX.Element {
         </div>
         <span className="topbar-page-label">{pageLabels[activePage]}</span>
         <span className="topbar-drag-space" />
-        <div className="topbar-status" aria-label="应用状态">
+        <div className={`topbar-status${isVisibleUpdate(updateStatus) ? ' has-update' : ''}`} aria-label="应用状态">
           <span><Cloud size={15} />{cloudStatus?.auth === 'signed_in' ? (cloudStatus.sync === 'syncing' ? '同步中' : '已同步') : '仅本地'}</span>
+          {isVisibleUpdate(updateStatus) && (
+            <button
+              className={`topbar-update is-${updateStatus.phase}`}
+              type="button"
+              disabled={updateStatus.phase === 'downloading' || updateStatus.phase === 'installing'}
+              onClick={() => void handleUpdateAction()}
+              title={updateStatus.error ?? updateButtonLabel(updateStatus)}
+              aria-live="polite"
+            >
+              {updateStatus.phase === 'ready'
+                ? <RefreshCw size={13} />
+                : <Download className={updateStatus.phase === 'downloading' ? 'is-pulsing' : undefined} size={13} />}
+              <span>{updateButtonLabel(updateStatus)}</span>
+            </button>
+          )}
           <small>{phaseOneLoading ? '正在连接' : `${jobs.length} 个任务`}</small>
         </div>
         <div className="topbar-actions">
@@ -397,11 +447,6 @@ export function App(): React.JSX.Element {
         </nav>
 
         <div className="sidebar-footer">
-          {hasUpdate && (
-            <button className="sidebar-update" type="button" onClick={() => notify('更新将在下载完成后显示')}>
-              <span>有新版本可用</span>
-            </button>
-          )}
           <button className="account-button" type="button" onClick={() => navigate('settings')}>
             <span className="account-avatar">
               {cloudStatus?.user?.avatarUrl ? <img src={cloudStatus.user.avatarUrl} alt="" /> : (cloudStatus?.user?.displayName?.slice(0, 1) ?? 'K')}
@@ -507,6 +552,22 @@ function formatIpcError(context: string, error: IpcError): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function isVisibleUpdate(status: AppUpdateStatus | null): status is AppUpdateStatus {
+  return Boolean(
+    status?.supported &&
+    status.availableVersion &&
+    ['available', 'downloading', 'ready', 'installing', 'error'].includes(status.phase),
+  )
+}
+
+function updateButtonLabel(status: AppUpdateStatus): string {
+  if (status.phase === 'downloading') return `下载 ${Math.round(status.percent ?? 0)}%`
+  if (status.phase === 'ready') return '重启更新'
+  if (status.phase === 'installing') return '正在重启'
+  if (status.phase === 'error') return '重试更新'
+  return `更新 ${status.availableVersion ?? ''}`.trim()
 }
 
 function NavItem({

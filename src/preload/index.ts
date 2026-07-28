@@ -7,8 +7,10 @@ import type { PhaseTwoApi } from '../shared/ipc/phase-two-contract.js'
 import { PHASE_TWO_IPC_CHANNELS } from '../shared/ipc/phase-two-contract.js'
 import type { CloudApi } from '../shared/ipc/cloud-contract.js'
 import { CLOUD_IPC_CHANNELS } from '../shared/ipc/cloud-contract.js'
+import type { AppUpdateStatus, UpdateApi } from '../shared/ipc/update-contract.js'
+import { UPDATE_IPC_CHANNELS } from '../shared/ipc/update-contract.js'
 
-const api: AlphaKApi & PhaseOneApi & PhaseTwoApi & CloudApi = {
+const api: AlphaKApi & PhaseOneApi & PhaseTwoApi & CloudApi & UpdateApi = {
   getPhaseZeroStatus: () => ipcRenderer.invoke(IPC_CHANNELS.getPhaseZeroStatus),
   refreshProviders: () => ipcRenderer.invoke(IPC_CHANNELS.refreshProviders),
   onPhaseZeroStatus: (listener) => {
@@ -37,6 +39,15 @@ const api: AlphaKApi & PhaseOneApi & PhaseTwoApi & CloudApi = {
   getCloudStatus: () => ipcRenderer.invoke(CLOUD_IPC_CHANNELS.statusGet),
   signInWithGitHub: () => ipcRenderer.invoke(CLOUD_IPC_CHANNELS.signInGithub),
   signOutCloud: () => ipcRenderer.invoke(CLOUD_IPC_CHANNELS.signOut),
+  getUpdateStatus: () => ipcRenderer.invoke(UPDATE_IPC_CHANNELS.statusGet),
+  checkForUpdate: () => ipcRenderer.invoke(UPDATE_IPC_CHANNELS.check),
+  downloadUpdate: () => ipcRenderer.invoke(UPDATE_IPC_CHANNELS.download),
+  restartAndInstallUpdate: () => ipcRenderer.invoke(UPDATE_IPC_CHANNELS.restartAndInstall),
+  onUpdateStatus: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, status: AppUpdateStatus): void => listener(status)
+    ipcRenderer.on(UPDATE_IPC_CHANNELS.statusChanged, handler)
+    return () => ipcRenderer.removeListener(UPDATE_IPC_CHANNELS.statusChanged, handler)
+  },
   onAppEvent: (listener) => {
     const handler = (_event: Electron.IpcRendererEvent, appEvent: AppEvent): void => listener(appEvent)
     ipcRenderer.on(PHASE_ONE_IPC_CHANNELS.appEvent, handler)

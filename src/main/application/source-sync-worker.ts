@@ -24,6 +24,7 @@ export class SourceSyncWorker {
   private timer: NodeJS.Timeout | undefined
   private processing = false
   private stopped = true
+  private inFlight: Promise<void> | null = null
 
   constructor(
     private readonly dependencies: {
@@ -50,15 +51,20 @@ export class SourceSyncWorker {
     if (!this.stopped) return
     this.stopped = false
     const interval = this.dependencies.pollIntervalMs ?? 500
-    this.timer = setInterval(() => void this.processNextSafely(), interval)
+    this.timer = setInterval(() => this.trigger(), interval)
     this.timer.unref()
-    void this.processNextSafely()
+    this.trigger()
   }
 
   stop(): void {
     this.stopped = true
     if (this.timer) clearInterval(this.timer)
     this.timer = undefined
+  }
+
+  async shutdown(): Promise<void> {
+    this.stop()
+    await this.inFlight
   }
 
   async processNext(): Promise<boolean> {
@@ -86,6 +92,13 @@ export class SourceSyncWorker {
     } catch (error) {
       this.dependencies.onError?.(error)
     }
+  }
+
+  private trigger(): void {
+    if (this.stopped || this.inFlight) return
+    this.inFlight = this.processNextSafely().finally(() => {
+      this.inFlight = null
+    })
   }
 
   private async processClaimedJob(job: Job): Promise<void> {

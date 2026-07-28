@@ -1,16 +1,21 @@
 {
   "name": "alpha-k",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "author": "Alpha-K Contributors",
   "description": "Local-first knowledge client powered by locally authenticated agents",
+  "repository": "github:Hyzenciaga/Alpha-K",
   "main": "./out/main/index.js",
   "type": "module",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "pnpm typecheck && electron-vite build",
     "package:dir": "pnpm build && electron-builder --mac dir",
+    "package:mac": "pnpm build && electron-builder --mac --arm64 --publish never",
+    "release:mac": "pnpm package:mac",
+    "update:keygen": "node scripts/generate-update-key.mjs",
+    "update:manifest": "node scripts/sign-update-manifest.mjs",
     "preview": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "test": "vitest run",
@@ -70,6 +75,7 @@
       "out/**/*",
       "package.json"
     ],
+    "artifactName": "${productName}-${version}-${arch}.${ext}",
     "protocols": [
       {
         "name": "Alpha-K authentication callback",
@@ -81,8 +87,12 @@
     "mac": {
       "icon": "build/icon.png",
       "category": "public.app-category.productivity",
+      "identity": "-",
+      "notarize": false,
+      "hardenedRuntime": false,
       "target": [
-        "dir"
+        "dmg",
+        "zip"
       ]
     }
   }

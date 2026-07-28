@@ -1,9 +1,11 @@
 import { join, resolve } from 'node:path'
 import { hostname } from 'node:os'
+import { writeFile } from 'node:fs/promises'
 import { app, BrowserWindow, dialog, ipcMain, powerMonitor, shell } from 'electron'
 import type { PhaseZeroStatus, ProviderProbe } from '../shared/contracts.js'
 import { IPC_CHANNELS } from '../shared/contracts.js'
 import { PHASE_ONE_IPC_CHANNELS, type AppEvent } from '../shared/ipc/phase-one-contract.js'
+import { UPDATE_IPC_CHANNELS, type AppUpdateStatus } from '../shared/ipc/update-contract.js'
 import { JobQueueService } from './application/job-queue-service.js'
 import { SourceIngestionService } from './application/source-ingestion-service.js'
 import { SourceService } from './application/source-service.js'
@@ -28,18 +30,25 @@ import { readCloudConfig } from './cloud/cloud-config.js'
 import { SecureSessionStorage } from './cloud/secure-session-storage.js'
 import { SupabaseRemoteSyncProvider } from './cloud/supabase-remote-sync-provider.js'
 import { registerCloudIpcHandlers } from './ipc/cloud-handlers.js'
+import { registerUpdateIpcHandlers } from './ipc/update-handlers.js'
 import { probeCodex } from './providers/codex-probe.js'
 import { probeQoder } from './providers/qoder-probe.js'
+import { AppUpdateService } from './update/app-update-service.js'
+import { GitHubUpdateClient, updateDownloadDirectory } from './update/github-update-client.js'
+import { MacUpdateInstaller, updateHealthPathFromArgs } from './update/macos-update-installer.js'
+import { UPDATE_ASSET_PREFIX, UPDATE_MANIFEST_URL, UPDATE_PUBLIC_KEY_PEM } from './update/update-config.js'
 
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
-let quitDrainComplete = false
+let shutdownComplete = false
+let shutdownPromise: Promise<void> | null = null
 let database: AlphaKDatabase | null = null
 let jobQueueService: JobQueueService | null = null
 let sourceSyncWorker: SourceSyncWorker | null = null
 let syncRunRepository: SyncRunRepository | null = null
 let cloudAuthService: CloudAuthService | null = null
 let cloudSyncWorker: CloudSyncWorker | null = null
+let updateService: AppUpdateService | null = null
 let pendingAuthDeepLink: string | null = null
 let providers: ProviderProbe[] = []
 let backgroundTicks = 0
@@ -145,6 +154,11 @@ function broadcastAppEvent(event: AppEvent): void {
   mainWindow.webContents.send(PHASE_ONE_IPC_CHANNELS.appEvent, event)
 }
 
+function broadcastUpdateStatus(status: AppUpdateStatus): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return
+  mainWindow.webContents.send(UPDATE_IPC_CHANNELS.statusChanged, status)
+}
+
 async function refreshProviders(): Promise<ProviderProbe[]> {
   providers = await Promise.all([
     safelyProbeProvider('codex', () => probeCodex()),
@@ -183,6 +197,7 @@ function registerIpc(
   jobs: JobQueueService,
   sourceService: SourceService,
   authService: CloudAuthService,
+  updates: AppUpdateService,
 ): void {
   ipcMain.handle(IPC_CHANNELS.getPhaseZeroStatus, () => currentStatus())
   ipcMain.handle(IPC_CHANNELS.refreshProviders, () => refreshProviders())
@@ -194,6 +209,7 @@ function registerIpc(
   })
   registerPhaseTwoIpcHandlers({ ipcMain, sourceService })
   registerCloudIpcHandlers({ ipcMain, cloudAuthService: authService })
+  registerUpdateIpcHandlers({ ipcMain, updateService: updates })
 }
 
 async function selectVaultDirectory(): Promise<string | undefined> {
@@ -210,13 +226,9 @@ async function selectVaultDirectory(): Promise<string | undefined> {
 app.on('before-quit', (event) => {
   isQuitting = true
   logPhaseZero('before-quit', { backgroundTicks })
-  if (cloudSyncWorker && !quitDrainComplete) {
-    event.preventDefault()
-    void cloudSyncWorker.shutdown().finally(() => {
-      quitDrainComplete = true
-      app.quit()
-    })
-  }
+  if (shutdownComplete) return
+  event.preventDefault()
+  void prepareForShutdown().finally(() => app.quit())
 })
 
 app.on('activate', () => {
@@ -315,10 +327,33 @@ void app.whenReady().then(async () => {
     },
     onError: (error) => console.error('[phase-two] source worker error', error),
   })
+  const appBundlePath = currentAppBundlePath()
+  updateService = new AppUpdateService({
+    client: new GitHubUpdateClient({
+      manifestUrl: UPDATE_MANIFEST_URL,
+      expectedAssetPrefix: UPDATE_ASSET_PREFIX,
+      publicKeyPem: UPDATE_PUBLIC_KEY_PEM,
+      updateDirectory: updateDownloadDirectory(appBundlePath),
+    }),
+    installer: new MacUpdateInstaller({
+      appBundlePath,
+      appName: app.getName(),
+      currentVersion: app.getVersion(),
+      processId: process.pid,
+    }),
+    currentVersion: app.getVersion(),
+    isPackaged: app.isPackaged,
+    prepareForInstall: async () => {
+      isQuitting = true
+      await prepareForShutdown()
+    },
+    quitForInstall: () => app.quit(),
+    onStatusChanged: broadcastUpdateStatus,
+  })
   console.info(
     `[phase-two] startup ${JSON.stringify({ recovery, reconciledSyncRuns, vault: vaultConnection.state })}`,
   )
-  registerIpc(vaultService, jobQueueService, sourceService, cloudAuthService)
+  registerIpc(vaultService, jobQueueService, sourceService, cloudAuthService, updateService)
   mainWindow = createWindow()
   const startupDeepLink =
     pendingAuthDeepLink ?? process.argv.find((argument) => argument.startsWith('alpha-k://')) ?? null
@@ -326,6 +361,8 @@ void app.whenReady().then(async () => {
   if (startupDeepLink) void handleAuthDeepLink(startupDeepLink)
   sourceSyncWorker.start()
   cloudSyncWorker.start()
+  updateService.start()
+  await writeUpdateHealthMarker(appBundlePath)
 
   powerMonitor.on('suspend', () => {
     lastLifecycleEvent = 'suspend'
@@ -349,6 +386,39 @@ void app.whenReady().then(async () => {
 })
 
 app.on('will-quit', () => {
+  finalizeApplicationResources()
+})
+
+async function prepareForShutdown(): Promise<void> {
+  if (shutdownComplete) return
+  if (shutdownPromise) return shutdownPromise
+  shutdownPromise = (async () => {
+    const drains = await Promise.allSettled([
+      sourceSyncWorker?.shutdown() ?? Promise.resolve(),
+      cloudSyncWorker?.shutdown() ?? Promise.resolve(),
+    ])
+    for (const drain of drains) {
+      if (drain.status === 'rejected') {
+        console.error('[lifecycle] worker shutdown failed', drain.reason)
+      }
+    }
+    try {
+      finalizeApplicationResources()
+    } catch (error) {
+      console.error('[lifecycle] resource shutdown failed', error)
+    } finally {
+      shutdownComplete = true
+    }
+  })()
+  try {
+    await shutdownPromise
+  } finally {
+    shutdownPromise = null
+  }
+}
+
+function finalizeApplicationResources(): void {
+  if (!database) return
   sourceSyncWorker?.stop()
   cloudSyncWorker?.stop()
   cloudAuthService?.dispose()
@@ -360,8 +430,9 @@ app.on('will-quit', () => {
       })()
     : 0
   if (interruptedJobs > 0) console.info(`[phase-one] interrupted-jobs-on-shutdown ${interruptedJobs}`)
-  database?.close()
-})
+  database.close()
+  database = null
+}
 
 function logPhaseZero(event: string, detail: unknown): void {
   console.info(`[phase-zero] ${event} ${JSON.stringify(detail)}`)
@@ -390,6 +461,20 @@ async function runLifecycleSmoke(window: BrowserWindow): Promise<void> {
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds))
+}
+
+function currentAppBundlePath(): string {
+  return resolve(process.execPath, '..', '..', '..')
+}
+
+async function writeUpdateHealthMarker(appBundlePath: string): Promise<void> {
+  const healthPath = updateHealthPathFromArgs(process.argv, appBundlePath)
+  if (!healthPath) return
+  try {
+    await writeFile(healthPath, 'ready\n', { mode: 0o600 })
+  } catch (error) {
+    console.error('[updater] failed to write post-update health marker', error)
+  }
 }
 
 function registerProtocolClient(): void {
