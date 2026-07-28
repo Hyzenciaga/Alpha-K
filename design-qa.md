@@ -22,7 +22,7 @@
 
 ## State
 
-- Inbox: real Phase 2 RSS projection with three persisted items, first item selected, source/status filters at `全部`, search empty.
+- Inbox: real Phase 2 RSS projection with three persisted items, no item selected by default, source/status filters at `全部`, search empty. The first item is selected only after explicit activation.
 - All Knowledge: Mock fixture data, horizontal range and label filters visible, card view selected.
 - Research Reports: Mock fixture data, three weekly reports in the horizontal selector, first report selected.
 - Settings: lower `设置与连接` region showing on/off application and Agent switches.
@@ -34,8 +34,8 @@
 - Colors and visual tokens: the current blue/navy and neutral production tokens replace the older multicolor prototype accents. Blue marks selection and the primary `入库` target; warning colors remain limited to ingestion status and error semantics.
 - Image quality and asset fidelity: the target contains no photographic or illustrative assets. Production uses the existing Lucide icon family; no custom SVG, emoji, CSS illustration, or placeholder raster was introduced.
 - Copy and content: production does not fabricate the source mock's Agent recommendation reason, core points, or suggested field. It shows the real deterministic excerpt and persisted provenance instead. `入库 / 不喜欢` is visible in the requested order and explicitly disabled as `尚未接入`; the page states that it will not download, write to Vault, or modify preferences.
-- States and interaction: Inbox source/status/search remain connected to the real backend query. Candidate selection updates the detail pane. All Knowledge range tabs reduce the visible Mock fixture set, label chips toggle independently, and report selection updates the preview. Switches were exercised in both states and restored.
-- Accessibility: Inbox rows are keyboard-selectable with `Enter` and `Space`; selected state uses `aria-pressed`. Range tabs expose tab semantics, label chips expose pressed state, and switches keep `role="switch"` with `aria-checked`.
+- States and interaction: Inbox source/status/search remain connected to the real backend query. The list starts full-width; candidate activation opens the detail pane, while its close button or `Escape` returns to the full-width list. All Knowledge range tabs reduce the visible Mock fixture set, label chips toggle independently, and report selection updates the preview. Switches were exercised in both states and restored.
+- Accessibility: Inbox rows expose `aria-expanded` and `aria-controls`, open with `Enter` or `Space`, and regain focus after the detail closes. The detail is labelled by its heading. Range tabs expose tab semantics, label chips expose pressed state, and switches keep `role="switch"` with `aria-checked`.
 
 ## Findings
 
@@ -74,6 +74,9 @@ No actionable P0, P1, or P2 findings remain.
 
 ## Primary interactions tested
 
+- Open Inbox and confirm no detail pane or selected row appears before user action.
+- Activate the first row with pointer and keyboard, confirming the right detail pane opens and the row becomes selected.
+- Close with both the explicit close button and `Escape`, confirming focus returns to the originating row and the list becomes full-width again.
 - Select another real Inbox row and confirm the detail pane follows selection.
 - Inspect disabled `入库 / 不喜欢` actions without mutating persisted Inbox state.
 - Switch All Knowledge from `全部知识` to `收藏`, observe six visible Mock fixtures reduce to two, then restore `全部知识`.
@@ -139,5 +142,59 @@ No actionable P0, P1, or P2 findings remain.
 2. The source was reframed to `1700 × 1700` around the complete cloud silhouette, then regenerated at `512px` for the renderer and `1024px` for packaging.
 3. The revised packaged capture and focused comparison show a larger, centered mark with no clipping, distortion, halo seam, or layout shift.
 4. `Info.plist` declares `CFBundleIconFile = icon.icns`, and the packaged `icon.icns` extracts successfully at `1024 × 1024`; the Electron default icon is no longer used.
+
+## Logo-derived semantic blue theme
+
+### Comparison target and evidence
+
+- The logo source, packaged light and forced-dark captures, Inbox states, and keyboard-focus comparisons were inspected locally. Their raw screenshots are not stored in the repository.
+
+### Viewport and normalization
+
+- Source pixels: `2048 × 2048`.
+- Both Electron implementations were captured at the default `1120 × 760` window and density `1`.
+- The source was aspect-preserved in a `760 × 760` white cell. The native light and dark captures were placed alongside it in a single `3000 × 760` comparison input.
+- The focused state comparison places native `1120 × 760` light and dark Inbox captures side by side without scaling or cropping.
+
+### Required fidelity surfaces
+
+- Theme ownership: the exact requested spectrum and interaction values live in `src/renderer/src/theme.css`, imported once after the existing renderer styles. Component anatomy and page layout are unchanged.
+- Interaction semantics: hover, selected, active, border, focus, primary action, lightweight emphasis, progress, and disabled states resolve through semantic variables in the final cascade. Translucency is confined to background layers.
+- Gradient restraint: the supplied logo gradient is limited to progress tracks; ordinary navigation, cards, controls, and text remain flat.
+- Light mode: the clear cyan `--accent` carries icons and lightweight status, the deeper `--accent-strong` carries primary actions and selected indicators, and low-opacity fills distinguish hover and selection without washing out text.
+- Dark mode: neutral surfaces, controls, selected rows, tags, notices, source glyphs, and disabled actions use dark semantic surfaces. `--accent-deep` is not used as a large background.
+- Disabled state: backgrounds, borders, and text use independent disabled variables at full component opacity. The Inbox comparisons show the children remain crisp while actions remain visibly unavailable.
+- Keyboard focus: the sidebar toggle and capture input were traversed with the keyboard in packaged Electron. Both themes show the requested `2px` ice-blue outline plus the low-opacity outer ring.
+- Text contrast: white text on primary `#066bd1` is `5.21:1`, on the computed primary hover color is `4.86:1`, and on pressed `#0556a7` is `7.25:1`. Strong-blue interactive text on the light selected layer is `4.53:1`. Deep-blue text on the soft brand surface is `7.50:1`.
+- Non-text accent: `#1ea1e6` is used for icons and progress rather than body copy. It reaches `5.99:1` on the dark surface; light-surface interactive text uses `--accent-strong` instead.
+
+### Findings and history
+
+No actionable P0, P1, or P2 findings remain.
+
+1. The first forced-dark comparison found [P2] light-only backgrounds surviving on quick capture, source filters, Inbox provenance/tags, the Phase 4 notice, bottom decisions, and source glyphs.
+2. Those surfaces were moved behind dark neutral and disabled semantic variables, with specificity matched at the theme layer.
+3. The final full and focused comparison inputs were opened together and inspected. The light implementation reflects the logo's ice-to-deep-blue hierarchy without spreading gradients or glow, while the dark implementation preserves the same state meaning with readable text and visible boundaries.
+4. The purple capsule occasionally visible over the macOS traffic-light area is the Computer Use screen-sharing privacy overlay, not renderer UI.
+
+### Runtime and automated checks
+
+- A local directory package was validated; its generated application bundle is not stored in the repository.
+- `git diff --check`, lint, typecheck, 15 test files / 49 tests, production build, and directory packaging passed.
+- The packaged app was launched normally and with `--force-dark-mode`; research, Inbox selection, disabled decisions, primary actions, and keyboard focus were inspected.
+- No Qoder generation or smoke job was started.
+- Packaging remains unsigned because the only installed Apple Development identity is expired; the local directory package runs successfully.
+
+## Inbox disclosure interaction
+
+- Default, expanded, and forced-dark states were inspected locally; their raw screenshots are not stored in the repository.
+- Viewport: packaged Electron at `1120 × 760`, density `1`, with three real persisted Phase 2 Inbox items.
+- Default state uses the full content width and renders no active row or detail landmark.
+- Pointer click, `Enter`, and `Space` open the selected item in the existing right-side detail treatment.
+- The explicit close button and `Escape` close the detail and restore focus to the originating row.
+- At widths below `980px`, the open detail replaces the list instead of being hidden; closing returns to the list.
+- The 160ms entry motion is disabled under `prefers-reduced-motion: reduce`.
+- Source/status filters, server search, refresh, disabled Phase 4 decisions, and the real Phase 2 projection remain unchanged.
+- No actionable P0, P1, or P2 finding remains after the side-by-side inspection.
 
 final result: passed

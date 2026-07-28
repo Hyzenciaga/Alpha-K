@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Atom, CheckCircle2, ExternalLink, FileText, RefreshCw, Rss, TriangleAlert } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Atom, CheckCircle2, ExternalLink, FileText, RefreshCw, Rss, TriangleAlert, X } from 'lucide-react'
 import type { InboxItemStatus, InboxItemSummary } from '../../shared/domain/inbox.js'
 import { Button, SearchField, StatusDot, Tag } from './components.js'
 import type { PhaseTwoRendererClient } from './phase-two-client.js'
@@ -33,6 +33,7 @@ export function InboxPage({
   const [sourceId, setSourceId] = useState('all')
   const [status, setStatus] = useState<StatusFilter>('all')
   const [search, setSearch] = useState('')
+  const activeRowRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
     if (!model) {
@@ -60,11 +61,30 @@ export function InboxPage({
       setActiveId(null)
       return
     }
-    if (!view.items.some((item) => item.id === activeId)) setActiveId(view.items[0].id)
+    if (activeId && !view.items.some((item) => item.id === activeId)) setActiveId(null)
   }, [activeId, view.items])
 
-  const activeItem = view.items.find((item) => item.id === activeId) ?? view.items[0]
+  const activeItem = view.items.find((item) => item.id === activeId)
   const failedCount = view.items.filter((item) => item.status === 'failed').length
+  const openDetail = useCallback((itemId: string, row: HTMLElement) => {
+    activeRowRef.current = row
+    setActiveId(itemId)
+  }, [])
+  const closeDetail = useCallback(() => {
+    setActiveId(null)
+    window.requestAnimationFrame(() => activeRowRef.current?.focus())
+  }, [])
+
+  useEffect(() => {
+    if (!activeItem) return undefined
+    const handleEscape = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      closeDetail()
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [activeItem, closeDetail])
 
   return (
     <div className="page page-inbox page-inbox-review">
@@ -123,7 +143,7 @@ export function InboxPage({
           ) : view.status === 'empty' ? (
             <PageState icon={<CheckCircle2 size={28} />} title="没有匹配的采集结果" description={search || sourceId !== 'all' || status !== 'all' ? '调整来源、状态或搜索条件后重试。' : '同步 RSS 来源后，确定性的采集结果会出现在这里。'} />
           ) : (
-            <div className="review-layout phase-two-inbox-layout">
+            <div className={`review-layout phase-two-inbox-layout${activeItem ? ' is-detail-open' : ''}`}>
               <section className="review-list" aria-label="采集结果">
                 {view.items.map((item) => (
                   <article
@@ -131,12 +151,13 @@ export function InboxPage({
                     key={item.id}
                     role="button"
                     tabIndex={0}
-                    aria-pressed={item.id === activeItem?.id}
-                    onClick={() => setActiveId(item.id)}
+                    aria-expanded={item.id === activeItem?.id}
+                    aria-controls="inbox-detail-panel"
+                    onClick={(event) => openDetail(item.id, event.currentTarget)}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault()
-                        setActiveId(item.id)
+                        openDetail(item.id, event.currentTarget)
                       }
                     }}
                   >
@@ -170,7 +191,7 @@ export function InboxPage({
                 ))}
               </section>
 
-              {activeItem && <InboxDetail item={activeItem} />}
+              {activeItem && <InboxDetail item={activeItem} onClose={closeDetail} />}
             </div>
           )}
         </>
@@ -179,18 +200,25 @@ export function InboxPage({
   )
 }
 
-function InboxDetail({ item }: { item: InboxItemSummary }): React.JSX.Element {
+function InboxDetail({ item, onClose }: { item: InboxItemSummary; onClose: () => void }): React.JSX.Element {
   return (
-    <aside className="review-detail phase-two-inbox-detail">
+    <aside
+      id="inbox-detail-panel"
+      className="review-detail phase-two-inbox-detail"
+      aria-labelledby="inbox-detail-heading"
+    >
       <header className="detail-header">
         <div className="detail-provenance">
           <span>{sourceTypeLabel(item.sourceType)}</span>
           <span>来自 {item.sourceName}</span>
           <span>抓取于 {formatShortDate(item.fetchedAt)}</span>
         </div>
-        {item.canonicalUrl && <a className="icon-button" href={item.canonicalUrl} target="_blank" rel="noreferrer" aria-label="打开原文" title="打开原文"><ExternalLink size={17} /></a>}
+        <div className="detail-tools">
+          {item.canonicalUrl && <a className="icon-button" href={item.canonicalUrl} target="_blank" rel="noreferrer" aria-label="打开原文" title="打开原文"><ExternalLink size={17} /></a>}
+          <button className="icon-button" type="button" aria-label="关闭详情" title="关闭详情" onClick={onClose}><X size={17} /></button>
+        </div>
       </header>
-      <h2>{item.title}</h2>
+      <h2 id="inbox-detail-heading">{item.title}</h2>
       <p className="detail-byline">{item.authors.length > 0 ? item.authors.join('、') : '未知作者'}</p>
 
       <section className={`deterministic-excerpt${item.status === 'failed' ? ' is-failed' : ''}`}>

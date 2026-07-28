@@ -1,0 +1,475 @@
+/*
+ * Alpha-K semantic theme
+ *
+ * This final cascade layer owns brand color and interaction states. Feature
+ * styles keep their layout and component anatomy; state colors resolve here.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Brand spectrum */
+  --accent-soft: #e6f0fa;
+  --accent-ice: #9de0f9;
+  --accent-light: #52bff0;
+  --accent: #1ea1e6;
+  --accent-strong: #066bd1;
+  --accent-pressed: #0556a7;
+  --accent-deep: #044b92;
+
+  /* Interaction layers */
+  --accent-hover-bg: rgba(30, 161, 230, 0.08);
+  --accent-selected-bg: rgba(30, 161, 230, 0.14);
+  --accent-active-bg: rgba(30, 161, 230, 0.20);
+  --accent-border: rgba(30, 161, 230, 0.32);
+  --accent-focus-ring: rgba(82, 191, 240, 0.38);
+  --accent-glow: rgba(63, 182, 238, 0.20);
+
+  /* Controlled brand effects */
+  --accent-gradient:
+    linear-gradient(
+      135deg,
+      #9de0f9 0%,
+      #52bff0 35%,
+      #1ea1e6 62%,
+      #066bd1 100%
+    );
+  --accent-primary-hover: color-mix(in srgb, var(--accent-strong) 96%, white);
+  --accent-interactive-text: var(--accent-strong);
+
+  /* Neutral surfaces */
+  --theme-canvas: #f3f4f1;
+  --theme-surface: #ffffff;
+  --theme-surface-subtle: #f8f9f7;
+  --theme-surface-muted: #eef1ee;
+  --theme-overlay: #ffffff;
+  --theme-topbar: rgb(250 250 248 / 97%);
+  --theme-text: #20231f;
+  --theme-text-muted: #6f756e;
+  --theme-text-subtle: #969b95;
+  --theme-border: #e2e4df;
+  --theme-border-strong: #d4d8d1;
+  --theme-track: #e9edf0;
+  --theme-shadow: 0 18px 50px rgb(29 34 29 / 14%);
+
+  /* Disabled controls use independent channels rather than component opacity. */
+  --control-disabled-bg: #edf1f3;
+  --control-disabled-border: #d9e0e4;
+  --control-disabled-text: #98a3aa;
+
+  /* Existing renderer aliases */
+  --ink: var(--theme-text);
+  --muted: var(--theme-text-muted);
+  --subtle: var(--theme-text-subtle);
+  --canvas: var(--theme-canvas);
+  --surface: var(--theme-surface);
+  --surface-strong: var(--theme-surface);
+  --line: var(--theme-border);
+  --line-strong: var(--theme-border-strong);
+  --sidebar: var(--theme-surface-subtle);
+  --sidebar-hover: var(--accent-hover-bg);
+  --sidebar-text: #474c47;
+  --sidebar-muted: #858c88;
+  --accent-dark: var(--accent-strong);
+  --accent-pale: var(--accent-hover-bg);
+  --blue: var(--accent);
+  --blue-soft: var(--accent-selected-bg);
+
+  --ui-accent: var(--accent);
+  --ui-accent-strong: var(--accent-strong);
+  --ui-accent-soft: var(--accent-selected-bg);
+  --ui-ink: var(--theme-text);
+  --ui-muted: var(--theme-text-muted);
+  --ui-faint: var(--theme-text-subtle);
+  --ui-line: var(--theme-border);
+  --ui-line-strong: var(--theme-border-strong);
+  --ui-canvas: var(--theme-surface);
+  --ui-sidebar: var(--theme-surface-subtle);
+  --ui-sidebar-hover: var(--accent-hover-bg);
+  --ui-shadow: var(--theme-shadow);
+}
+
+/* Keyboard focus is deliberately independent from hover and selection. */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent-light);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px var(--accent-focus-ring);
+}
+
+.search-field input:focus-visible,
+.capture-composer input:focus-visible,
+.capture-composer textarea:focus-visible {
+  outline: 0;
+  box-shadow: none;
+}
+
+.search-field:focus-within,
+.capture-composer:focus-within,
+.global-search .search-field:focus-within,
+.sidebar-search .search-field:focus-within {
+  border-color: var(--accent-light);
+  box-shadow: 0 0 0 3px var(--accent-focus-ring);
+}
+
+/* Hover layers */
+.topbar .icon-button:hover,
+.sidebar-intro > button:hover,
+.nav-item:hover,
+.sidebar-footer .account-button:hover,
+.sidebar-footer .icon-button:hover,
+.settings-popover > button:hover,
+.page-back-button:hover,
+.research-hero > button:hover,
+.material-entry > button:hover,
+.capture-popover-header > button:hover,
+.capture-kind-switch button:hover,
+.segmented-control button:hover,
+.settings-nav button:hover,
+.settings-jump-grid > button:hover,
+.filter-section > button:hover,
+.horizontal-tabs > button:hover,
+.library-label-bar > button:hover,
+.report-strip-items > button:hover,
+.report-list > button:hover,
+.conversation-group button:hover,
+.query-suggestions button:hover,
+.search-field > button:hover,
+.source-table tbody tr:hover,
+.source-row-actions > button:not(:disabled):hover,
+.page-inbox-review .review-row:hover,
+.review-row:hover {
+  background: var(--accent-hover-bg);
+}
+
+.quick-capture-trigger:hover,
+.quick-capture-trigger.is-open {
+  border-color: var(--accent-border);
+  color: var(--accent-interactive-text);
+  background: var(--accent-hover-bg);
+}
+
+/* Selected and active navigation, lists, tabs, and tags */
+.nav-item.is-active,
+.sidebar-footer .icon-button.is-active,
+.capture-kind-switch button.is-active,
+.segmented-control button.is-active,
+.settings-nav button.is-active,
+.filter-section > button.is-active,
+.horizontal-tabs > button.is-active,
+.library-label-bar > button.is-active,
+.report-strip-items > button.is-active,
+.report-list > button.is-active,
+.conversation-group button.is-active {
+  border-color: var(--accent-border);
+  color: var(--accent-interactive-text);
+  background: var(--accent-selected-bg);
+}
+
+.page-inbox-review .review-row.is-active,
+.review-row.is-active {
+  border-color: var(--accent-border);
+  background: var(--accent-selected-bg);
+  box-shadow: inset 3px 0 var(--accent-strong);
+}
+
+.report-strip-items > button.is-active,
+.report-list > button.is-active {
+  box-shadow: inset 0 -3px var(--accent-strong);
+}
+
+.nav-item:active:not(:disabled),
+.sidebar-intro > button:active:not(:disabled),
+.sidebar-footer button:active:not(:disabled),
+.settings-popover > button:active:not(:disabled),
+.capture-kind-switch button:active:not(:disabled),
+.segmented-control button:active:not(:disabled),
+.settings-nav button:active:not(:disabled),
+.settings-jump-grid > button:active:not(:disabled),
+.filter-section > button:active:not(:disabled),
+.horizontal-tabs > button:active:not(:disabled),
+.library-label-bar > button:active:not(:disabled),
+.report-strip-items > button:active:not(:disabled),
+.report-list > button:active:not(:disabled),
+.page-inbox-review .review-row:active:not(:disabled),
+.review-row:active:not(:disabled) {
+  background: var(--accent-active-bg);
+}
+
+/* Primary actions keep the deeper edge color for readable white text. */
+.button-primary,
+.capture-submit,
+.research-resume > button,
+.learning-rail-card > button {
+  border-color: var(--accent-deep);
+  color: #ffffff;
+  background: var(--accent-strong);
+}
+
+.button-primary:hover,
+.capture-submit:hover,
+.research-resume > button:hover,
+.learning-rail-card > button:hover {
+  background: var(--accent-primary-hover);
+}
+
+.button-primary:active:not(:disabled),
+.capture-submit:active:not(:disabled),
+.research-resume > button:active:not(:disabled),
+.learning-rail-card > button:active:not(:disabled) {
+  background: var(--accent-pressed);
+}
+
+/* Lightweight brand emphasis */
+.quick-capture-icon,
+.capture-popover-mark,
+.research-hero-icon,
+.material-type,
+.settings-jump-icon.source,
+.provider-logo,
+.source-glyph {
+  color: var(--accent);
+  background: var(--accent-selected-bg);
+}
+
+.nav-badge,
+.toggle.is-on,
+.account-avatar i.is-online,
+.status-dot-success,
+.material-state i.is-read {
+  border-color: var(--accent-strong);
+  background: var(--accent-strong);
+}
+
+.learning-progress,
+.bar-track {
+  background: var(--theme-track);
+}
+
+.learning-progress i,
+.bar-track span {
+  background: var(--accent-gradient);
+}
+
+.progress-ring {
+  background: conic-gradient(var(--accent) var(--progress), var(--theme-track) 0);
+}
+
+.tag-success,
+.collection-callout,
+.settings-jump-icon.source,
+.page-inbox-review .review-row-copy .tag {
+  border-color: var(--accent-border);
+  color: var(--accent-interactive-text);
+  background: var(--accent-selected-bg);
+}
+
+.recommendation-actions button:first-child,
+.review-row-decisions button.is-primary,
+.page-back-button {
+  border-color: var(--accent-border);
+  color: var(--accent-interactive-text);
+  background: var(--accent-hover-bg);
+}
+
+/* Disabled controls retain readable boundaries without fading their children. */
+button:disabled,
+input:disabled,
+textarea:disabled,
+select:disabled,
+.capture-submit:disabled,
+.review-row-decisions button:disabled {
+  cursor: not-allowed;
+  opacity: 1;
+  border-color: var(--control-disabled-border);
+  color: var(--control-disabled-text);
+  background: var(--control-disabled-bg);
+}
+
+.topbar .icon-button:disabled,
+.icon-button:disabled {
+  opacity: 1;
+  border-color: transparent;
+  color: var(--control-disabled-text);
+  background: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --accent-interactive-text: var(--accent-ice);
+    --theme-canvas: #0d151c;
+    --theme-surface: #121c24;
+    --theme-surface-subtle: #101922;
+    --theme-surface-muted: #1a2832;
+    --theme-overlay: #17242e;
+    --theme-topbar: rgb(13 21 28 / 97%);
+    --theme-text: #ebf4f8;
+    --theme-text-muted: #a9b8c0;
+    --theme-text-subtle: #7f949f;
+    --theme-border: rgb(157 224 249 / 15%);
+    --theme-border-strong: rgb(157 224 249 / 25%);
+    --theme-track: #24343f;
+    --theme-shadow: 0 20px 54px rgb(0 0 0 / 34%);
+    --control-disabled-bg: #1b2831;
+    --control-disabled-border: #2b3b46;
+    --control-disabled-text: #667985;
+    --sidebar-text: #d7e5eb;
+    --sidebar-muted: #80949f;
+  }
+
+  body,
+  .app-shell,
+  .app-main,
+  .research-workspace,
+  .research-thread {
+    color: var(--theme-text);
+    background: var(--theme-surface);
+  }
+
+  .topbar {
+    background: var(--theme-topbar);
+  }
+
+  .sidebar,
+  .learning-rail,
+  .page-inbox-review .phase-two-inbox-detail,
+  .phase-four-notice,
+  .inbox-phase-badge,
+  .settings-nav,
+  .capture-composer,
+  .runtime-strip,
+  .sync-request-result,
+  .deterministic-excerpt {
+    color: var(--theme-text);
+    background: var(--theme-surface-subtle);
+  }
+
+  .sidebar-tools .quick-capture-trigger,
+  .sidebar-search .search-field,
+  .global-search .search-field,
+  .research-resume {
+    border-color: var(--theme-border-strong);
+    color: var(--theme-text);
+    background: var(--theme-overlay);
+  }
+
+  .capture-popover,
+  .settings-popover,
+  .learning-rail-card,
+  .settings-section,
+  .settings-section > header,
+  .settings-jump-grid > button,
+  .vault-path-card,
+  .button-secondary,
+  .search-field,
+  .select-button,
+  .topic-shortcut,
+  .library-label-bar > button,
+  .recommendation-actions button,
+  .page-inbox-review .phase-two-inbox-layout .review-list,
+  .page-inbox-review .review-row,
+  .report-strip-items > button,
+  .modal-card,
+  .provider-card,
+  .workflow-section,
+  .source-table-wrap,
+  .review-layout,
+  .panel {
+    color: var(--theme-text);
+    background: var(--theme-overlay);
+  }
+
+  .inbox-source-filter select,
+  .inbox-status-filter select,
+  .page-inbox-review .detail-provenance span:first-child,
+  .page-inbox-review .phase-two-inbox-detail .tag {
+    border-color: var(--theme-border-strong);
+    color: var(--theme-text);
+    background: var(--theme-overlay);
+  }
+
+  .field-nav-icon.tone-blue,
+  .field-nav-icon.tone-violet,
+  .field-nav-icon.tone-amber,
+  .field-nav-icon.tone-slate,
+  .page-inbox-review .source-glyph,
+  .material-type.type-博客,
+  .material-type.type-推文,
+  .recommendation-icon {
+    color: var(--accent-light);
+    background: var(--theme-surface-muted);
+  }
+
+  .research-hero > button,
+  .material-entry > button {
+    color: var(--theme-text-muted);
+    background: var(--theme-surface-muted);
+  }
+
+  .research-materials > header > button,
+  .rail-link {
+    color: var(--accent-ice);
+    background: transparent;
+  }
+
+  .brand-copy strong,
+  .account-copy strong,
+  .nav-item,
+  .topbar .icon-button,
+  .page-header h1,
+  .research-hero h1,
+  .research-materials h2,
+  .learning-rail-card h2,
+  .learning-rail-card h3,
+  .page-inbox-review .review-row-copy h3,
+  .page-inbox-review .review-detail > h2 {
+    color: var(--theme-text);
+  }
+
+  .research-hero p,
+  .research-resume,
+  .research-resume > div,
+  .material-entry > p,
+  .continue-learning-card > p,
+  .rail-description,
+  .page-header-copy > p:last-child {
+    color: var(--theme-text-muted);
+  }
+
+  .page-eyebrow,
+  .panel-kicker,
+  .section-kicker,
+  .continue-learning-card > small {
+    color: var(--accent-light);
+  }
+
+  .page-inbox-review .phase-four-notice,
+  .page-inbox-review .review-actions {
+    border-color: var(--theme-border);
+    color: var(--theme-text-muted);
+    background: var(--theme-surface-muted);
+  }
+
+  .page-inbox-review .phase-four-notice strong {
+    color: var(--theme-text);
+  }
+
+  .brand-mark {
+    border-color: var(--accent-deep);
+    background: var(--theme-surface-muted);
+  }
+
+  .capture-note-input,
+  .page-inbox-review .phase-two-inbox-detail {
+    background: var(--theme-surface-subtle);
+  }
+
+  .toast {
+    border-color: var(--accent-border);
+    color: var(--theme-text);
+    background: #0b2234;
+  }
+}

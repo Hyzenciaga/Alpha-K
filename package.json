@@ -10,6 +10,7 @@
   "type": "module",
   "scripts": {
     "dev": "electron-vite dev",
+    "preview:web": "vite --host 127.0.0.1 --port 5174 --mode browser-preview",
     "build": "pnpm typecheck && electron-vite build",
     "package:dir": "pnpm build && electron-builder --mac dir",
     "package:mac": "pnpm build && electron-builder --mac --arm64 --publish never",
