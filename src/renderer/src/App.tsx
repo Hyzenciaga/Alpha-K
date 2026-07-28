@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Bell,
+  BookMarked,
   Bot,
   BrainCircuit,
   BriefcaseBusiness,
@@ -25,6 +26,7 @@ import type { VaultConnection } from '@shared/domain/vault'
 import type { CloudStatus } from '@shared/domain/cloud-sync'
 import type { AppUpdateStatus } from '@shared/ipc/update-contract'
 import { CapturePopover } from './CapturePopover'
+import { LearningCapturesPage } from './LearningCapturesPage'
 import { IconButton, SearchField, Toast } from './components'
 import { InboxPage } from './InboxPage'
 import type { PageId } from './mock-data'
@@ -50,6 +52,7 @@ const learningFields: Array<{ id: LearningFieldId; label: string; icon: React.Re
 const pageLabels: Record<PageId, string> = {
   today: '研究空间',
   inbox: '收件箱',
+  captures: '待学习',
   library: '全部知识',
   sources: '信息源订阅',
   query: '问 Alpha-K',
@@ -69,6 +72,7 @@ export function App(): React.JSX.Element {
   const [captureKind, setCaptureKind] = useState<'note' | 'link'>('link')
   const [captureTitle, setCaptureTitle] = useState('')
   const [captureContent, setCaptureContent] = useState('')
+  const [captureSaving, setCaptureSaving] = useState(false)
   const [vaultConnection, setVaultConnection] = useState<VaultConnection | null>(null)
   const [jobs, setJobs] = useState<Job[]>([])
   const [phaseOneLoading, setPhaseOneLoading] = useState(true)
@@ -328,14 +332,33 @@ export function App(): React.JSX.Element {
     notify(`正在知识库中查找“${search.trim()}”`)
   }
 
-  function saveCapture(): void {
+  async function saveCapture(): Promise<void> {
     if (!captureTitle.trim() && !captureContent.trim()) return
-    setCaptureOpen(false)
-    setCaptureTitle('')
-    setCaptureContent('')
-    notify(captureKind === 'note'
-      ? '想法已加入本次会话；正式持久化尚未接入'
-      : '链接已加入本次会话；正式持久化尚未接入')
+    if (cloudStatus?.auth !== 'signed_in' || !cloudStatus.user) {
+      notify('请先登录 GitHub 账户后再录入待学习内容')
+      return
+    }
+    setCaptureSaving(true)
+    try {
+      const result = await window.alphaK.createLearningCapture({
+        kind: captureKind,
+        title: captureKind === 'note' ? captureTitle || undefined : undefined,
+        note: captureKind === 'link' ? captureTitle || undefined : undefined,
+        content: captureContent,
+      })
+      if (!result.ok) {
+        notify(formatIpcError('录入失败', result.error))
+        return
+      }
+      setCaptureOpen(false)
+      setCaptureTitle('')
+      setCaptureContent('')
+      notify(captureKind === 'note' ? '想法已收下，留待整理' : '链接已收下，留待学习')
+    } catch (error) {
+      notify(`录入失败：${errorMessage(error)}`)
+    } finally {
+      setCaptureSaving(false)
+    }
   }
 
   return (
@@ -397,7 +420,10 @@ export function App(): React.JSX.Element {
             onKindChange={setCaptureKind}
             onTitleChange={setCaptureTitle}
             onContentChange={setCaptureContent}
-            onSubmit={saveCapture}
+            signedIn={cloudStatus?.auth === 'signed_in' && Boolean(cloudStatus.user)}
+            saving={captureSaving}
+            onRequireSignIn={() => void signInWithGitHub()}
+            onSubmit={() => void saveCapture()}
           />
           <form className="sidebar-search" onSubmit={submitGlobalSearch}>
             <SearchField value={search} onChange={setSearch} placeholder="搜索知识…" compact />
@@ -414,6 +440,11 @@ export function App(): React.JSX.Element {
           <NavItem
             item={{ id: 'inbox', label: '收件箱', icon: <Inbox size={18} />, badge: '6' }}
             active={activePage === 'inbox'}
+            onSelect={navigate}
+          />
+          <NavItem
+            item={{ id: 'captures', label: '待学习', icon: <BookMarked size={18} /> }}
+            active={activePage === 'captures'}
             onSelect={navigate}
           />
 
@@ -493,6 +524,14 @@ export function App(): React.JSX.Element {
             />
           )}
           {activePage === 'inbox' && <InboxPage client={phaseTwoClient} vaultId={vaultConnection?.vault?.id ?? null} />}
+          {activePage === 'captures' && (
+            <LearningCapturesPage
+              cloudStatus={cloudStatus}
+              signInBusy={cloudBusy}
+              onSignIn={() => void signInWithGitHub()}
+              onNotify={notify}
+            />
+          )}
           {activePage === 'library' && <LibraryPage notify={notify} search={search} />}
           {activePage === 'sources' && (
             <SourcesPage

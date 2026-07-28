@@ -4,6 +4,7 @@ import { JobSchema } from '../domain/job.js'
 import { SourceSchema } from '../domain/source.js'
 import { SyncRunSchema } from '../domain/sync-run.js'
 import { CloudStatusSchema } from '../domain/cloud-sync.js'
+import { CaptureKindSchema } from '../domain/capture.js'
 
 export const AppEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('job.updated'), job: JobSchema }).strict(),
@@ -12,6 +13,7 @@ export const AppEventSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('source.sync.updated'), syncRun: SyncRunSchema }).strict(),
   z.object({ type: z.literal('inbox.changed'), itemIds: z.array(IdSchema) }).strict(),
   z.object({ type: z.literal('cloud.status.changed'), status: CloudStatusSchema }).strict(),
+  z.object({ type: z.literal('capture.changed'), captureId: IdSchema, kind: CaptureKindSchema }).strict(),
 ])
 
 export type { AppEvent } from './app-event-contract.js'

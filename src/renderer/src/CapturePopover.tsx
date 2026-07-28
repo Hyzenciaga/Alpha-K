@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { CornerDownLeft, Link2, Plus, Sparkles, StickyNote, X } from 'lucide-react'
+import { CornerDownLeft, Link2, LockKeyhole, Plus, Sparkles, StickyNote, X } from 'lucide-react'
 
 type CaptureKind = 'link' | 'note'
 
@@ -13,6 +13,9 @@ export function CapturePopover({
   onKindChange,
   onTitleChange,
   onContentChange,
+  signedIn,
+  saving,
+  onRequireSignIn,
   onSubmit,
 }: {
   open: boolean
@@ -24,6 +27,9 @@ export function CapturePopover({
   onKindChange: (kind: CaptureKind) => void
   onTitleChange: (title: string) => void
   onContentChange: (content: string) => void
+  signedIn: boolean
+  saving: boolean
+  onRequireSignIn: () => void
   onSubmit: () => void
 }): React.JSX.Element {
   const shellRef = useRef<HTMLDivElement>(null)
@@ -33,17 +39,17 @@ export function CapturePopover({
   useEffect(() => {
     if (!open) return undefined
 
-    contentRef.current?.focus()
+    if (signedIn) contentRef.current?.focus()
     function handleOutsidePointer(event: PointerEvent): void {
       if (!shellRef.current?.contains(event.target as Node)) onOpenChange(false)
     }
 
     document.addEventListener('pointerdown', handleOutsidePointer)
     return () => document.removeEventListener('pointerdown', handleOutsidePointer)
-  }, [open, onOpenChange])
+  }, [open, onOpenChange, signedIn])
 
   function handleKeyDown(event: React.KeyboardEvent): void {
-    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && canSubmit) {
+    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && signedIn && canSubmit && !saving) {
       event.preventDefault()
       onSubmit()
     }
@@ -83,6 +89,14 @@ export function CapturePopover({
             </button>
           </header>
 
+          {!signedIn ? (
+            <div className="capture-popover-auth-gate">
+              <span><LockKeyhole size={17} /></span>
+              <strong>登录后收下待学习内容</strong>
+              <p>链接和想法会安全保存到你的账户中。</p>
+              <button type="button" onClick={onRequireSignIn}>使用 GitHub 登录</button>
+            </div>
+          ) : <>
           <div className="capture-kind-switch" role="group" aria-label="录入类型">
             <button
               type="button"
@@ -134,7 +148,7 @@ export function CapturePopover({
           </div>
 
           <div className="capture-popover-boundary">
-            <span>目前仅暂存在本次会话，不会下载内容或写入 Vault。</span>
+            <span>先保存原始内容，不下载网页或写入 Vault。</span>
           </div>
 
           <footer className="capture-popover-footer">
@@ -142,12 +156,13 @@ export function CapturePopover({
             <button
               className="capture-submit"
               type="button"
-              disabled={!canSubmit}
+              disabled={!canSubmit || saving}
               onClick={onSubmit}
             >
-              暂存到待整理
+              {saving ? '正在收下…' : '收下到待学习'}
             </button>
           </footer>
+          </>}
         </section>
       )}
     </div>

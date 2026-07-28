@@ -1,6 +1,7 @@
 export type PageId =
   | 'today'
   | 'inbox'
+  | 'captures'
   | 'library'
   | 'sources'
   | 'query'

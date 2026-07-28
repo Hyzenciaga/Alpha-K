@@ -11,6 +11,7 @@ import { SourceIngestionService } from './application/source-ingestion-service.j
 import { SourceService } from './application/source-service.js'
 import { SourceSyncWorker } from './application/source-sync-worker.js'
 import { CloudSyncWorker } from './application/cloud-sync-worker.js'
+import { CaptureService } from './application/capture-service.js'
 import { VaultService } from './application/vault-service.js'
 import { registerPhaseOneIpcHandlers } from './ipc/phase-one-handlers.js'
 import { registerPhaseTwoIpcHandlers } from './ipc/phase-two-handlers.js'
@@ -29,7 +30,9 @@ import { CloudAuthService } from './cloud/cloud-auth-service.js'
 import { readCloudConfig } from './cloud/cloud-config.js'
 import { SecureSessionStorage } from './cloud/secure-session-storage.js'
 import { SupabaseRemoteSyncProvider } from './cloud/supabase-remote-sync-provider.js'
+import { SupabaseCaptureRepository } from './cloud/supabase-capture-repository.js'
 import { registerCloudIpcHandlers } from './ipc/cloud-handlers.js'
+import { registerCaptureIpcHandlers } from './ipc/capture-handlers.js'
 import { registerUpdateIpcHandlers } from './ipc/update-handlers.js'
 import { probeCodex } from './providers/codex-probe.js'
 import { probeQoder } from './providers/qoder-probe.js'
@@ -196,6 +199,7 @@ function registerIpc(
   vaultService: VaultService,
   jobs: JobQueueService,
   sourceService: SourceService,
+  captureService: CaptureService,
   authService: CloudAuthService,
   updates: AppUpdateService,
 ): void {
@@ -208,6 +212,7 @@ function registerIpc(
     selectVaultDirectory,
   })
   registerPhaseTwoIpcHandlers({ ipcMain, sourceService })
+  registerCaptureIpcHandlers({ ipcMain, captureService })
   registerCloudIpcHandlers({ ipcMain, cloudAuthService: authService })
   registerUpdateIpcHandlers({ ipcMain, updateService: updates })
 }
@@ -290,6 +295,13 @@ void app.whenReady().then(async () => {
     },
   })
   await cloudAuthService.initialize()
+  const captureService = new CaptureService({
+    cloudAuthService,
+    createRepository: () => new SupabaseCaptureRepository(cloudAuthService!.getAuthenticatedClient()),
+    onCaptureChanged: (capture) => {
+      broadcastAppEvent({ type: 'capture.changed', captureId: capture.id, kind: capture.kind })
+    },
+  })
   cloudSyncWorker = new CloudSyncWorker({
     authService: cloudAuthService,
     repository: cloudSyncRepository,
@@ -353,7 +365,7 @@ void app.whenReady().then(async () => {
   console.info(
     `[phase-two] startup ${JSON.stringify({ recovery, reconciledSyncRuns, vault: vaultConnection.state })}`,
   )
-  registerIpc(vaultService, jobQueueService, sourceService, cloudAuthService, updateService)
+  registerIpc(vaultService, jobQueueService, sourceService, captureService, cloudAuthService, updateService)
   mainWindow = createWindow()
   const startupDeepLink =
     pendingAuthDeepLink ?? process.argv.find((argument) => argument.startsWith('alpha-k://')) ?? null
